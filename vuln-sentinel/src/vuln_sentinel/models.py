@@ -134,3 +134,32 @@ class ThreatEvent(StrictModel):
             p = Package(ecosystem=self.ecosystem, name=self.package, version=version)
         self.ecosystem, self.package = p.ecosystem, p.name
         return self
+
+
+class Artifact(StrictModel):
+    kind: Literal["patch", "branch", "pr", "runbook"]
+    ref: str = Field(max_length=1000)
+    content: str = Field(default="", max_length=200_000)
+
+
+class Action(StrictModel):
+    type: Literal[
+        "PIN_VERSION",
+        "OVERRIDE_TRANSITIVE",
+        "REPLACE_PACKAGE",
+        "DISABLE_FEATURE",
+        "BLOCK_VERSION",
+        "PURGE_CACHES",
+        "ROTATE_SECRET",
+        "REVOKE_PRINCIPAL",
+        "HUNT_LOGS",
+        "NOTIFY_HUMAN",
+    ]
+    target: str = Field(min_length=1, max_length=500)
+    rationale: str = Field(min_length=3, max_length=2000)
+    artifacts: list[Artifact] = Field(default_factory=list, max_length=20)
+
+
+class AgentResponse(StrictModel):
+    summary: str = Field(min_length=3, max_length=2000)
+    actions: list[Action] = Field(default_factory=list, max_length=50)

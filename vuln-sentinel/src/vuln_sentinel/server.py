@@ -12,7 +12,16 @@ from pydantic import BaseModel, Field
 
 from .backend import DemoBackend, SnowflakeBackend
 from .config import Principal, Settings
-from .models import SBOM, Proposal, ResponseRequest, Review, ScanReport, ThreatEvent, UseCaseMap
+from .models import (
+    SBOM,
+    AgentResponse,
+    Proposal,
+    ResponseRequest,
+    Review,
+    ScanReport,
+    ThreatEvent,
+    UseCaseMap,
+)
 from .service import Service
 from .store import Store
 
@@ -206,6 +215,22 @@ def create_app(settings=None, service=None):
     def impacts(client_id: str):
         identity.get().tenant(client_id)
         return service.impacts(client_id)
+
+    @app.get("/v1/notifications")
+    def notifications(client_id: str | None = None, status: str | None = None):
+        p = identity.get()
+        if client_id is None:
+            p.require("admin")
+        else:
+            p.tenant(client_id)
+        return service.store.notifications(client_id, status)
+
+    @app.post("/v1/notifications/{notification_id}/response")
+    def notification_response(notification_id: str, body: AgentResponse):
+        p = identity.get()
+        p.require("admin", "agent")
+        p.tenant(service.store.get_notification(notification_id)["client_id"])
+        return service.store.respond_notification(notification_id, body, p.subject)
 
     @app.post("/v1/clients/{client_id}/usecases")
     def usecases(client_id: str, body: UseCaseMap):

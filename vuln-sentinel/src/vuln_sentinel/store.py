@@ -19,6 +19,7 @@ TABLES = {
     "emergencies": "emergency_id VARCHAR PRIMARY KEY, client_id VARCHAR NOT NULL, revision VARCHAR NOT NULL, fingerprint VARCHAR NOT NULL, status VARCHAR NOT NULL, payload VARCHAR NOT NULL, proposal VARCHAR, reviewer VARCHAR, reason VARCHAR, created_at VARCHAR NOT NULL, updated_at VARCHAR NOT NULL",
     "agent_events": "event_id VARCHAR PRIMARY KEY, client_id VARCHAR NOT NULL, actor VARCHAR NOT NULL, kind VARCHAR NOT NULL, payload VARCHAR NOT NULL, created_at VARCHAR NOT NULL",
     "threat_events": "event_id VARCHAR PRIMARY KEY, ecosystem VARCHAR NOT NULL, name VARCHAR NOT NULL, payload VARCHAR NOT NULL, created_at VARCHAR NOT NULL",
+    "notifications": "notification_id VARCHAR PRIMARY KEY, client_id VARCHAR NOT NULL, kind VARCHAR NOT NULL, priority VARCHAR NOT NULL, status VARCHAR NOT NULL, payload VARCHAR NOT NULL, response VARCHAR, created_at VARCHAR NOT NULL, updated_at VARCHAR NOT NULL",
     "use_cases": "client_id VARCHAR PRIMARY KEY, payload VARCHAR NOT NULL, created_at VARCHAR NOT NULL",
 }
 
@@ -219,6 +220,11 @@ class Store:
                         f"UPDATE {self.table('emergencies')} SET status='OPEN',proposal=NULL,reviewer=NULL,reason=NULL,updated_at=? WHERE emergency_id=?",
                         [now(), identity],
                     )
+                    self.execute(
+                        c,
+                        f"UPDATE {self.table('notifications')} SET status='NEW',response=NULL,updated_at=? WHERE notification_id=?",
+                        [now(), identity],
+                    )
                     self.event(c, client, actor, "EMERGENCY_REOPENED", {"emergency_id": identity})
                 return identity
             pkg = response["package"]
@@ -252,8 +258,73 @@ class Store:
                     now(),
                 ],
             )
+            self.notify(c, identity, client, "THREAT", response.get("priority", "P3"), response)
             self.event(c, client, actor, "EMERGENCY_OPENED", {"emergency_id": identity})
         return identity
+
+    def notify(self, conn, identity, client, kind, priority, payload):
+        """Add to the notification center once; the identity makes repeats idempotent."""
+        if not self.rows(
+            conn, f"SELECT 1 AS x FROM {self.table('notifications')} WHERE notification_id=?", [identity]
+        ):
+            self.execute(
+                conn,
+                f"INSERT INTO {self.table('notifications')} VALUES (?,?,?,?,?,?,?,?,?)",
+                [identity, client, kind, priority, "NEW", encode(payload), None, now(), now()],
+            )
+
+    def notifications(self, client=None, status=None):
+        with self.transaction() as c:
+            clauses = [("client_id=?", client), ("status=?", status)]
+            where = " AND ".join(sql for sql, value in clauses if value)
+            rows = self.rows(
+                c,
+                f"SELECT * FROM {self.table('notifications')}{' WHERE ' + where if where else ''} ORDER BY created_at DESC",
+                [value for _, value in clauses if value],
+            )
+        for row in rows:
+            row["payload"] = json.loads(row["payload"])
+            row["response"] = json.loads(row["response"]) if row["response"] else None
+        return rows
+
+    def respond_notification(self, identity, response, actor):
+        with self.transaction() as c:
+            rows = self.rows(
+                c,
+                f"SELECT client_id,kind FROM {self.table('notifications')} WHERE notification_id=?",
+                [identity],
+            )
+            if not rows:
+                raise ValueError("Unknown notification")
+            client = rows[0]["client_id"]
+            if rows[0]["kind"] == "THREAT":
+                live = self.rows(
+                    c,
+                    f"SELECT 1 AS x FROM {self.table('emergencies')} WHERE emergency_id=? AND status<>'SUPERSEDED'",
+                    [identity],
+                )
+                if not live:
+                    raise ValueError("Notification is stale; its incident was superseded")
+            cursor = self.execute(
+                c,
+                f"UPDATE {self.table('notifications')} SET status='RESPONDED',response=?,updated_at=? WHERE notification_id=? AND status='NEW'",
+                [encode(response.model_dump()), now(), identity],
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("Notification is not awaiting a response")
+            self.event(
+                c, client, actor, "AGENT_RESPONDED", {"notification_id": identity, **response.model_dump()}
+            )
+        return {"status": "RESPONDED", "requires_human_approval": True}
+
+    def get_notification(self, identity):
+        with self.transaction() as c:
+            rows = self.rows(
+                c, f"SELECT client_id FROM {self.table('notifications')} WHERE notification_id=?", [identity]
+            )
+        if not rows:
+            raise ValueError("Unknown notification")
+        return rows[0]
 
     def list_emergencies(self, client=None):
         with self.transaction() as c:
@@ -308,6 +379,15 @@ class Store:
     def report(self, client, report, actor):
         with self.transaction() as c:
             self.event(c, client, actor, "SCAN_REPORTED", report.model_dump())
+            if report.findings:
+                self.notify(
+                    c,
+                    digest([client, "IOC_MATCH", report.model_dump()]),
+                    client,
+                    "IOC_MATCH",
+                    "P1",
+                    report.model_dump(),
+                )
         return {"accepted": True, "findings": len(report.findings)}
 
     def events(self, client):
