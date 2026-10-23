@@ -2,6 +2,7 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY pyproject.toml README.md constraints.txt ./
 COPY src ./src
+COPY .streamlit ./.streamlit
 RUN pip install --no-cache-dir -c constraints.txt '.[snowflake]' && mkdir -p /app/.sentinel && useradd --create-home sentinel && chown -R sentinel /app
 USER sentinel
 ENV PYTHONUNBUFFERED=1

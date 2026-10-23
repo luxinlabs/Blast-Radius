@@ -1,4 +1,4 @@
-# Vuln Sentinel / Blast Radius
+# Blast Radius
 
 Human-reviewed incident response for npm and PyPI dependencies, backed by Snowflake.
 

@@ -10,6 +10,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import BaseModel, Field
 
+from .agents import AgentCoordinator
 from .backend import DemoBackend, SnowflakeBackend
 from .config import Principal, Settings
 from .models import SBOM, Proposal, ResponseRequest, Review, ScanReport
@@ -82,7 +83,7 @@ def create_app(settings=None, service=None):
         DemoBackend() if settings.backend == "demo" else SnowflakeBackend(settings), Store(settings)
     )
     mcp = FastMCP(
-        "Vuln Sentinel",
+        "Blast Radius",
         stateless_http=True,
         json_response=True,
         streamable_http_path="/",
@@ -152,7 +153,7 @@ def create_app(settings=None, service=None):
         async with mcp.session_manager.run():
             yield
 
-    app = FastAPI(title="Vuln Sentinel", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Blast Radius", version="0.1.0", lifespan=lifespan)
     app.state.service = service
     app.state.mcp = mcp
     app.add_middleware(BearerMiddleware, tokens=settings.tokens or {})
@@ -230,6 +231,18 @@ def create_app(settings=None, service=None):
     def review(emergency_id: str, body: Review):
         return service.review(identity.get(), emergency_id, body)
 
+    @app.get("/v1/clients/{client_id}/inventory")
+    def inventory(client_id: str):
+        import json
+
+        identity.get().tenant(client_id)
+        rows = service.store.latest_sboms(client_id)
+        return (
+            {"client_id": client_id, "revision": rows[0]["revision"], "sbom": json.loads(rows[0]["payload"])}
+            if rows
+            else {"client_id": client_id, "revision": None, "sbom": {"packages": []}}
+        )
+
     @app.get("/v1/clients/{client_id}/events")
     def events(client_id: str):
         identity.get().tenant(client_id)
@@ -240,6 +253,43 @@ def create_app(settings=None, service=None):
         if hasattr(service.backend, "load_intel"):
             service.backend.load_intel()
         return service.backend.intel.indicators()
+
+    coordinator = AgentCoordinator(service)
+
+    @mcp.tool()
+    def get_agent_status(emergency_id: str):
+        """Inspect scanner evidence, patch readiness, and containment status for an incident."""
+        return coordinator.inspect(identity.get(), emergency_id)
+
+    @mcp.tool()
+    def run_response_agents(emergency_id: str):
+        """Recheck an incident and propose containment. Does not apply blocks, run remote tests, or deploy."""
+        return coordinator.run(identity.get(), emergency_id)
+
+    @mcp.tool()
+    def check_deployment_gate(client_id: str, sbom: SBOM):
+        """Check an inventory against advisories and human-approved package block policies."""
+        return coordinator.gate(identity.get(), client_id, sbom)
+
+    @app.get("/v1/emergencies/{emergency_id}/agents")
+    def agents(emergency_id: str):
+        return coordinator.inspect(identity.get(), emergency_id)
+
+    @app.post("/v1/emergencies/{emergency_id}/agents/run")
+    def run_agents(emergency_id: str):
+        return coordinator.run(identity.get(), emergency_id)
+
+    @app.post("/v1/containment/{action_id}/review")
+    def containment_review(action_id: str, body: Review):
+        return coordinator.review(identity.get(), action_id, body)
+
+    @app.post("/v1/containment/{action_id}/revoke")
+    def containment_revoke(action_id: str, body: Review):
+        return coordinator.revoke(identity.get(), action_id, body)
+
+    @app.post("/v1/clients/{client_id}/gate")
+    def deployment_gate(client_id: str, body: SBOM):
+        return coordinator.gate(identity.get(), client_id, body)
 
     app.mount("/mcp", mcp.streamable_http_app())
     return app

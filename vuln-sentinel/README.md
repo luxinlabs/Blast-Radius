@@ -1,4 +1,4 @@
-# Vuln Sentinel
+# Blast Radius
 
 Scan exact dependency versions, evaluate OSV advisories in Snowflake, hunt for indicators locally, prepare tested fix branches, and record human reviews. The system never merges or deploys a fix.
 
@@ -62,7 +62,7 @@ The dashboard shows the proposal, validation command, rollback plan, client path
 | Component | Implementation |
 |---|---|
 | HTTP API | `src/vuln_sentinel/server.py`, FastAPI, bearer PAT authentication |
-| MCP | Same server, Streamable HTTP at `/mcp/`, seven tools |
+| MCP | Same server, Streamable HTTP at `/mcp/`, ten tools |
 | Client agent | `sentinel scan`, `hunt`, `fix` |
 | Human review | `sentinel dashboard`, Streamlit, API-enforced authorization |
 | Persistence | SQLite/WAL locally; Snowflake tracking tables in live mode |
@@ -70,7 +70,7 @@ The dashboard shows the proposal, validation command, rollback plan, client path
 | Marketplace adapter | `INTEL.SIGNAL_FEED`, enriched package-risk view, source/expiry-aware priority and local IOC hunting |
 | Response engine | Existing `SERVING.RESPOND`, corrected by migration 11 |
 
-MCP tools: `respond`, `get_package_risk`, `get_blast_radius`, `list_emergencies`, `register_sbom`, `report_scan`, and `submit_fix_proposal`. Approval is deliberately outside the agent tool surface. Point an HTTP-capable MCP client at `http://127.0.0.1:8000/mcp/` and configure `Authorization: Bearer <agent-token>`. Do not commit tokens into client configuration.
+MCP tools: `respond`, `get_package_risk`, `get_blast_radius`, `list_emergencies`, `register_sbom`, `report_scan`, `submit_fix_proposal`, `get_agent_status`, `run_response_agents`, and `check_deployment_gate`. Approval is deliberately outside the agent tool surface. Point an HTTP-capable MCP client at `http://127.0.0.1:8000/mcp/` and configure `Authorization: Bearer <agent-token>`. Do not commit tokens into client configuration.
 
 ```json
 {
@@ -144,3 +144,26 @@ Live Snowflake DDL compilation, provider mappings, account privileges, warehouse
 - Snowflake watchlist paths still use latest-release declarations; client paths are separate and labeled. Six-hop limits apply to the original watchlist view; client traversal uses visited locators to handle cycles.
 - Catalog coverage is limited to loaded npm/PyPI packages. Missing catalog entries return unknown. Scan/reconcile commands exit with status 2 for incomplete coverage.
 - AI briefs are optional, untrusted summaries. The incident decision and approvals use structured facts, not generated prose.
+
+
+## Presentation theme and response agents
+
+The front end is branded **Blast Radius** and follows the supplied presentation screenshot: near-black background, slate panels, orange headings, and blue/orange/green scanner, patch, and containment panels. The command center includes incident selection, package search, inventory/evidence downloads, an activity timeline, and separate human reviews for fixes and containment. The linked Claude artifact could not be retrieved during implementation; the supplied screenshot is the visual reference.
+
+- **Scanner agent** rechecks the exact inventory against advisory evidence and shows client dependency paths. Local log hunting remains `sentinel hunt`.
+- **Patch agent** prepares a client fix command and reflects actual PR/test evidence. `sentinel fix` runs the existing isolated worktree workflow. The dashboard does not execute commands in your repository remotely.
+- **Containment agent** proposes a persistent package version block. A reviewer activates or rejects it. Active policies persist across inventory changes until a reviewer revokes them. Every transition is audited.
+
+These are executable workflow agents exposed through the API/MCP. The local demo does not run three Claude model instances, Cortex Search, or Cortex Code. WAF updates, host/service isolation, and owner notifications require their infrastructure connectors and are labeled manual actions rather than completed actions. PHP, Maven, and Go from the presentation are not loaded ecosystems; this implementation still covers npm/PyPI.
+
+Run the workflows from the command center, or from the client:
+
+```bash
+sentinel agents --emergency EMERGENCY_ID
+sentinel agents --emergency EMERGENCY_ID --inspect
+sentinel gate requirements.txt
+```
+
+The gate exits **0** for a clean covered inventory, **3** for a blocked version or unknown coverage, and nonzero on API failures. It also evaluates current advisories independently of approved block policies. Your CI/deployment pipeline must call the gate and require a successful exit; recording a policy alone does not change an external deployment platform. Reviewer/admin tokens can revoke active block policies from the Human review tab. Current advisory matches still block the gate after policy revocation.
+
+Existing Snowflake deployments should apply `sql/14_containment_agents.sql` after migrations 10 and 13, rebuild/copy `dist/vuln_sentinel.zip`, and restart application processes. Existing SQLite demos create the extra table automatically on API restart. After this update, restart both `sentinel serve` and `sentinel dashboard` to load the new API routes and theme.

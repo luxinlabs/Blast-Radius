@@ -110,7 +110,7 @@ def demo():
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Vuln Sentinel · exact versions · human-reviewed fixes")
+    parser = argparse.ArgumentParser(description="Blast Radius · exact versions · human-reviewed fixes")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("init-demo")
     sub.add_parser("demo")
@@ -121,6 +121,11 @@ def main():
     dashboard.add_argument("--port", type=int, default=8501)
     scan = sub.add_parser("scan")
     scan.add_argument("lockfile")
+    agents = sub.add_parser("agents")
+    agents.add_argument("--emergency", required=True)
+    agents.add_argument("--inspect", action="store_true")
+    gate = sub.add_parser("gate")
+    gate.add_argument("lockfile")
     hunt = sub.add_parser("hunt")
     hunt.add_argument("logs", nargs="+")
     fix = sub.add_parser("fix")
@@ -177,10 +182,23 @@ def main():
             )
             if args.command == "scan":
                 result = client.scan(args.lockfile)
+            elif args.command == "agents":
+                result = client.request(
+                    "GET" if args.inspect else "POST",
+                    f"/v1/emergencies/{args.emergency}/agents" + ("" if args.inspect else "/run"),
+                )
+            elif args.command == "gate":
+                from .lockfiles import parse_lockfile
+
+                result = client.request(
+                    "POST", f"/v1/clients/{client.client_id}/gate", parse_lockfile(args.lockfile).model_dump()
+                )
             elif args.command == "hunt":
                 result = client.hunt(args.logs)
             elif args.command == "fix":
-                result = client.fix(args.lockfile, args.emergency, args.test, args.open_pr)
+                from .agents import PatchAgent
+
+                result = PatchAgent.execute(client, args.lockfile, args.emergency, args.test, args.open_pr)
             else:
                 if args.interval and args.interval < 60:
                     raise ValueError("Reconcile interval must be at least 60 seconds")
@@ -191,6 +209,8 @@ def main():
                     print(json.dumps(result, indent=2), flush=True)
                     time.sleep(args.interval)
         print(json.dumps(result, indent=2, default=str))
+        if args.command == "gate" and not result["allowed"]:
+            sys.exit(3)
         if args.command in {"scan", "reconcile"}:
             report = result.get("scan", result)
             if not report.get("complete", False):
