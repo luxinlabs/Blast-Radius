@@ -147,6 +147,13 @@ def main():
     sub.add_parser("demo")
     orgs = sub.add_parser("demo-orgs", help="Register the fake client orgs, ready for `inject`")
     orgs.add_argument("root", nargs="?", default="examples/orgs")
+    workers = sub.add_parser(
+        "client-agents", help="Run notification-driven client workers and optionally stream their logs"
+    )
+    workers.add_argument("--clients", nargs="+")
+    workers.add_argument("--watch", action="store_true")
+    workers.add_argument("--once", action="store_true")
+    workers.add_argument("--stop", action="store_true")
     serve = sub.add_parser("serve")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
@@ -230,7 +237,16 @@ def main():
                 os.environ["SENTINEL_TOKEN"],
                 os.getenv("SENTINEL_CLIENT_ID", "demo-app"),
             )
-            if args.command == "scan":
+            if args.command == "client-agents":
+                from .client_agent import supervise
+
+                supervisor = Client(
+                    str(client.http.base_url),
+                    os.getenv("SENTINEL_ADMIN_TOKEN") or os.environ["SENTINEL_TOKEN"],
+                    client.client_id,
+                )
+                result = supervise(supervisor, args.clients, args.watch, args.once, args.stop)
+            elif args.command == "scan":
                 result = client.scan(args.lockfile)
             elif args.command == "inject":
                 admin = Client(

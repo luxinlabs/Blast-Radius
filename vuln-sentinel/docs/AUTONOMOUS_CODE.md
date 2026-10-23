@@ -214,6 +214,10 @@ for note in http.get("/v1/notifications", params={"status": "NEW"}).json():
     http.post(f"/v1/notifications/{note['notification_id']}/response", json=response).raise_for_status()
 ```
 
+## Local sandbox client
+
+A notification-consuming multi-client worker now exists for the local demo. It proposes patches/runbooks, requests reviewer approval, and runs a fixed policy/syntax check harness in restricted Docker containers on copied files. See [client-sandbox.md](client-sandbox.md). It uses a rule-based planner and does not execute notification-supplied commands.
+
 ## Not built yet
 
 - A client-device command that fetches `RESPONDED` patches, applies them in a worktree, runs the client's tests and opens a draft PR. `sentinel fix` does this today for a single `PIN_VERSION` it computes itself.

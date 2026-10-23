@@ -131,18 +131,21 @@ def run(session, ecosystem, package_name, version, ai_brief):
 
     # safe version: newest stable, not yanked, not affected by any advisory; prefer same major
     # Evaluate all ranges; materialized risk covers only watchlist packages.
+    # Anti-join: Snowflake cannot evaluate a UDF inside a correlated NOT EXISTS.
     clean = [r[''VERSION''] for r in q(session, ''''''SELECT v.version
         FROM VULN_SENTINEL_DB.CORE.PACKAGE_VERSIONS v
-        WHERE v.ecosystem=? AND LOWER(v.name)=? AND NOT COALESCE(v.yanked,FALSE)
-          AND COALESCE(v.deprecated,'''')=''''
-          AND NOT EXISTS (
-            SELECT 1 FROM VULN_SENTINEL_DB.CORE.AFFECTED_RANGES a
+        LEFT JOIN (
+            SELECT DISTINCT b.version FROM VULN_SENTINEL_DB.CORE.PACKAGE_VERSIONS b
+            JOIN VULN_SENTINEL_DB.CORE.AFFECTED_RANGES a
+              ON a.ecosystem=b.ecosystem AND LOWER(a.package_name)=LOWER(b.name)
             JOIN VULN_SENTINEL_DB.CORE.ADVISORIES d ON d.advisory_id=a.advisory_id
-            WHERE a.ecosystem=v.ecosystem AND LOWER(a.package_name)=LOWER(v.name)
+            WHERE b.ecosystem=? AND LOWER(b.name)=?
               AND d.withdrawn IS NULL AND COALESCE(d.details,'''') NOT ILIKE ''False positive%''
-              AND COALESCE(VULN_SENTINEL_DB.CORE.IS_AFFECTED(a.ecosystem,v.version,
+              AND COALESCE(VULN_SENTINEL_DB.CORE.IS_AFFECTED(a.ecosystem,b.version,
                   a.introduced,a.fixed,a.last_affected,a.affected_versions), TRUE)
-          )'''''', [eco,name])]
+        ) bad ON bad.version=v.version
+        WHERE v.ecosystem=? AND LOWER(v.name)=? AND NOT COALESCE(v.yanked,FALSE)
+          AND COALESCE(v.deprecated,'''')='''' AND bad.version IS NULL'''''', [eco,name,eco,name])]
     clean = [v for v in clean if vkey(eco, v) and vkey(eco, v)[0] == 1]
     clean.sort(key=lambda v: vkey(eco, v), reverse=True)
     m = major(eco, version)

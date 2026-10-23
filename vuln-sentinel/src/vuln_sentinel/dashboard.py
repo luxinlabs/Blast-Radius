@@ -8,6 +8,7 @@ import httpx
 import streamlit as st
 
 from vuln_sentinel.client import Client
+from vuln_sentinel.sandbox_ui import render_sandbox
 
 st.set_page_config(page_title="Blast Radius", page_icon="◈", layout="wide", initial_sidebar_state="expanded")
 st.markdown(
@@ -162,6 +163,9 @@ if impacts:
         use_container_width=True,
         hide_index=True,
     )
+
+with st.expander("Client sandbox / live execution requests", expanded=False):
+    render_sandbox(client, client_id)
 
 if not visible:
     st.info("No incidents match the selected statuses. Run a client scan to register an inventory.")

@@ -183,3 +183,8 @@ sentinel gate requirements.txt
 The gate exits **0** for a clean covered inventory, **3** for a blocked version or unknown coverage, and nonzero on API failures. It also evaluates current advisories independently of approved block policies. Your CI/deployment pipeline must call the gate and require a successful exit; recording a policy alone does not change an external deployment platform. Reviewer/admin tokens can revoke active block policies from the Human review tab. Current advisory matches still block the gate after policy revocation.
 
 Existing Snowflake deployments should apply `sql/14_containment_agents.sql` after migrations 10 and 13, rebuild/copy `dist/vuln_sentinel.zip`, and restart application processes. Existing SQLite demos create the extra table automatically on API restart. After this update, restart both `sentinel serve` and `sentinel dashboard` to load the new API routes and theme.
+
+
+## Multi-client sandbox agents
+
+Watch three client workers consume notifications, propose patches, request code-execution approval, and stream sandbox output. Start with `sentinel demo-orgs`, then `sentinel client-agents --clients acme-pay buildkit llm-gateway --watch`. The dashboard's **Client sandbox / live execution requests** panel shows the live logs, exact patch, approval form, and check result. Docker and a locally prepared `python:3.12-alpine` image are required for execution; no host fallback is used. See [the full sandbox runbook](docs/client-sandbox.md).

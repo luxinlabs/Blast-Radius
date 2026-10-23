@@ -177,3 +177,13 @@ class AccessFinding(StrictModel):
 
 class AccessReport(StrictModel):
     findings: list[AccessFinding] = Field(default_factory=list, max_length=1000)
+
+
+class FleetStart(StrictModel):
+    clients: list[str] = Field(min_length=1, max_length=20)
+
+
+class SandboxApproval(StrictModel):
+    decision: Literal["APPROVED", "REJECTED"]
+    reason: str = Field(min_length=3, max_length=2000)
+    plan_digest: str = Field(pattern=r"^[a-f0-9]{64}$")

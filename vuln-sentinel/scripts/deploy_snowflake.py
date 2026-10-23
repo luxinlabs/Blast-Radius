@@ -24,4 +24,5 @@ with snowflake.connector.connect(
     for step in sorted(args.steps):
         (path,) = sql_dir.glob(f"{step}_*.sql")
         print(f"Running {path.name}", flush=True)
-        conn.execute_string(path.read_text())
+        # Trailing comment-only text would otherwise be sent as an empty statement.
+        conn.execute_string(path.read_text(), remove_comments=True)

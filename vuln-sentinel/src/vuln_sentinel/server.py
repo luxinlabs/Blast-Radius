@@ -92,6 +92,9 @@ def create_app(settings=None, service=None):
     service = service or Service(
         DemoBackend() if settings.backend == "demo" else SnowflakeBackend(settings), Store(settings)
     )
+    from .sandbox import ClientFleet
+
+    fleet = ClientFleet(service, settings) if settings.backend == "demo" else None
     mcp = FastMCP(
         "Blast Radius",
         stateless_http=True,
@@ -161,9 +164,14 @@ def create_app(settings=None, service=None):
     @asynccontextmanager
     async def lifespan(app):
         async with mcp.session_manager.run():
-            yield
+            try:
+                yield
+            finally:
+                if fleet:
+                    fleet.close()
 
     app = FastAPI(title="Blast Radius", version="0.1.0", lifespan=lifespan)
+    app.state.sandbox_fleet = fleet
     app.state.service = service
     app.state.mcp = mcp
     app.add_middleware(BearerMiddleware, tokens=settings.tokens or {})
@@ -342,6 +350,67 @@ def create_app(settings=None, service=None):
     @app.post("/v1/clients/{client_id}/gate")
     def deployment_gate(client_id: str, body: SBOM):
         return coordinator.gate(identity.get(), client_id, body)
+
+    from .models import FleetStart, SandboxApproval
+
+    def local_fleet():
+        if fleet is None:
+            raise ValueError("Client sandbox is available only on the local demo backend")
+        return fleet
+
+    @app.get("/v1/sandbox/clients")
+    def sandbox_clients():
+        f = local_fleet()
+        principal = identity.get()
+        return [
+            {
+                "client_id": name,
+                "running": name in f.workers and f.workers[name][0].is_alive(),
+                "error": f.worker_errors.get(name),
+            }
+            for name in f.repositories
+            if principal.role == "admin" or principal.client_id == name
+        ]
+
+    @app.post("/v1/sandbox/fleet/start")
+    def sandbox_start(body: FleetStart):
+        return local_fleet().start(identity.get(), body.clients)
+
+    @app.post("/v1/sandbox/fleet/stop")
+    def sandbox_stop(body: FleetStart):
+        return local_fleet().stop(identity.get(), body.clients)
+
+    @app.post("/v1/sandbox/fleet/poll")
+    def sandbox_poll(body: FleetStart):
+        p = identity.get()
+        p.require("admin", "agent")
+        f = local_fleet()
+        for name in body.clients:
+            p.tenant(name)
+            if name not in f.repositories:
+                raise ValueError("Client repository is not configured on this host")
+        for name in body.clients:
+            f.drain(name)
+        return {"polled": body.clients}
+
+    @app.get("/v1/sandbox/jobs")
+    def sandbox_jobs(client_id: str | None = None):
+        p = identity.get()
+        if client_id is None:
+            p.require("admin")
+        else:
+            p.tenant(client_id)
+        return local_fleet().jobs.list(client_id)
+
+    @app.get("/v1/sandbox/jobs/{job_id}/logs")
+    def sandbox_logs(job_id: str, after: int = 0):
+        f = local_fleet()
+        identity.get().tenant(f.jobs.get(job_id)["client_id"])
+        return f.jobs.logs(job_id, after)
+
+    @app.post("/v1/sandbox/jobs/{job_id}/review")
+    def sandbox_review(job_id: str, body: SandboxApproval):
+        return local_fleet().decide(identity.get(), job_id, body)
 
     app.mount("/mcp", mcp.streamable_http_app())
     return app
