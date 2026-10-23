@@ -5,6 +5,7 @@ import secrets
 import shlex
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 
@@ -49,18 +50,32 @@ def init_demo():
     print("Created .env with separate admin, agent and reviewer tokens (mode 0600).")
 
 
-def demo():
-    """Socket-free walkthrough, persisted for the local dashboard. No real PR is created."""
+@contextmanager
+def in_process_api():
+    """Socket-free API session on the local demo backend; yields call(method, path, body, role)."""
     from fastapi.testclient import TestClient
 
     from .config import Settings
-    from .models import SBOM, Package
     from .server import create_app
 
     settings = Settings.from_env()
     if settings.backend != "demo":
         raise ValueError("The walkthrough only supports SENTINEL_BACKEND=demo")
     tokens = {p.role: token for token, p in settings.tokens.items()}
+    with TestClient(create_app(settings)) as client:
+
+        def call(method, path, body=None, role="admin"):
+            r = client.request(method, path, json=body, headers={"Authorization": f"Bearer {tokens[role]}"})
+            r.raise_for_status()
+            return r.json()
+
+        yield call
+
+
+def demo():
+    """Socket-free walkthrough, persisted for the local dashboard. No real PR is created."""
+    from .models import SBOM, Package
+
     sbom = SBOM(
         source="requirements.txt",
         packages=[
@@ -73,13 +88,7 @@ def demo():
             )
         ],
     )
-    with TestClient(create_app(settings)) as client:
-
-        def call(method, path, body=None, role="admin"):
-            r = client.request(method, path, json=body, headers={"Authorization": f"Bearer {tokens[role]}"})
-            r.raise_for_status()
-            return r.json()
-
+    with in_process_api() as call:
         call("POST", "/v1/clients", {"client_id": "demo-app", "name": "Local demo application"})
         call("POST", "/v1/clients/demo-app/sbom", sbom.model_dump(), "agent")
         scan = call("POST", "/v1/clients/demo-app/reconcile", role="agent")
@@ -109,11 +118,35 @@ def demo():
         }
 
 
+def demo_orgs(root):
+    """Register each fake client org under `root`: inventory, inferred use cases and access monitoring."""
+    from .lockfiles import parse_lockfile
+    from .monitor import detect, parse_events, parse_secure
+    from .usecases import scan_repo
+
+    with in_process_api() as call:
+        for org in sorted(p for p in Path(root).iterdir() if p.is_dir()):
+            sbom = parse_lockfile(
+                next(p for p in (org / "package-lock.json", org / "requirements.txt") if p.exists())
+            )
+            call("POST", "/v1/clients", {"client_id": org.name, "name": org.name})
+            call("POST", f"/v1/clients/{org.name}/sbom", sbom.model_dump())
+            known = {(p.ecosystem, p.name) for p in sbom.packages}
+            call("POST", f"/v1/clients/{org.name}/usecases", {"usages": scan_repo(org, known)})
+            if (org / "access.log").exists():
+                events = parse_events((org / "access.log").read_text())
+                found = detect(events, parse_secure((org / "secure.txt").read_text()))
+                call("POST", f"/v1/clients/{org.name}/access", {"findings": found})
+        return call("POST", "/v1/reconcile")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Vuln Sentinel · exact versions · human-reviewed fixes")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("init-demo")
     sub.add_parser("demo")
+    orgs = sub.add_parser("demo-orgs", help="Register the fake client orgs, ready for `inject`")
+    orgs.add_argument("root", nargs="?", default="examples/orgs")
     serve = sub.add_parser("serve")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
@@ -182,6 +215,8 @@ def main():
             return
         if args.command == "demo":
             result = demo()
+        elif args.command == "demo-orgs":
+            result = demo_orgs(args.root)
         else:
             from .client import Client
 

@@ -1,0 +1,12 @@
+{"ts": "2026-10-23T05:20:00Z", "principal": "ci-runner-7", "resource": "build-cache", "ip": "10.0.1.9"}
+{"ts": "2026-10-23T05:30:00Z", "principal": "ci-runner-7", "resource": "OPENAI_API_KEY", "ip": "198.51.100.23"}
+{"ts": "2026-10-23T05:31:10Z", "principal": "ci-runner-7", "resource": "ANTHROPIC_API_KEY", "ip": "198.51.100.23"}
+{"ts": "2026-10-23T05:32:20Z", "principal": "ci-runner-7", "resource": "STRIPE_API_KEY", "ip": "198.51.100.23"}
+{"ts": "2026-10-23T05:33:30Z", "principal": "ci-runner-7", "resource": "DB_PASSWORD", "ip": "198.51.100.23"}
+{"ts": "2026-10-23T05:34:40Z", "principal": "ci-runner-7", "resource": "OPENAI_API_KEY", "ip": "198.51.100.23"}
+{"ts": "2026-10-23T05:35:50Z", "principal": "ci-runner-7", "resource": "ANTHROPIC_API_KEY", "ip": "198.51.100.23"}
+{"ts": "2026-10-23T05:37:00Z", "principal": "ci-runner-7", "resource": "STRIPE_API_KEY", "ip": "198.51.100.23"}
+{"ts": "2026-10-23T05:38:10Z", "principal": "ci-runner-7", "resource": "DB_PASSWORD", "ip": "198.51.100.23"}
+{"ts": "2026-10-23T09:00:00Z", "principal": "gateway-svc", "resource": "OPENAI_API_KEY", "ip": "10.0.0.5"}
+{"ts": "2026-10-23T09:04:10Z", "principal": "gateway-svc", "resource": "ANTHROPIC_API_KEY", "ip": "10.0.0.5"}
+{"ts": "2026-10-23T09:30:00Z", "principal": "billing-svc", "resource": "STRIPE_API_KEY", "ip": "10.0.0.8"}

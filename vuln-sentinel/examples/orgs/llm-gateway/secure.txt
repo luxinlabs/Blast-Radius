@@ -1,0 +1,4 @@
+OPENAI_API_KEY: gateway-svc
+ANTHROPIC_API_KEY: gateway-svc
+STRIPE_API_KEY: billing-svc
+DB_PASSWORD
