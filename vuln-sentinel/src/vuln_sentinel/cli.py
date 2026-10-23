@@ -129,6 +129,13 @@ def main():
     inject.add_argument("package")
     inject.add_argument("versions", nargs="+")
     inject.add_argument("--advisory", default="DEMO-INJECTED")
+    monitor = sub.add_parser("monitor", help="Flag abnormal access to resources marked secure")
+    monitor.add_argument("log", help="JSON-lines access log")
+    monitor.add_argument("secure", help="File of secure resources, optionally `NAME: allowed, principals`")
+    monitor.add_argument("--window", type=int, default=10, help="Burst window in minutes")
+    monitor.add_argument(
+        "--limit", type=int, default=5, help="Secure accesses inside the window that trigger a flag"
+    )
     hunt = sub.add_parser("hunt")
     hunt.add_argument("logs", nargs="+")
     fix = sub.add_parser("fix")
@@ -201,6 +208,8 @@ def main():
                 }
             elif args.command == "map":
                 result = client.map_code(args.root, args.lockfile)
+            elif args.command == "monitor":
+                result = client.monitor(args.log, args.secure, args.window, args.limit)
             elif args.command == "hunt":
                 result = client.hunt(args.logs)
             elif args.command == "fix":

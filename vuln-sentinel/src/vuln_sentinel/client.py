@@ -5,6 +5,7 @@ import shlex
 import subprocess
 import tempfile
 from collections import Counter
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -12,6 +13,7 @@ import httpx
 
 from .intel import normalize_indicator
 from .lockfiles import parse_lockfile
+from .monitor import detect, parse_events, parse_secure
 from .store import digest
 from .usecases import scan_repo
 
@@ -54,6 +56,16 @@ class Client:
         indicators = self.request("GET", "/v1/indicators")
         report = hunt_logs(paths, indicators)
         self.request("POST", f"/v1/clients/{self.client_id}/reports", report)
+        return report
+
+    def monitor(self, log, secure, window=10, limit=5):
+        events = parse_events(Path(log).read_text())
+        report = {
+            "findings": detect(
+                events, parse_secure(Path(secure).read_text()), timedelta(minutes=window), limit
+            )
+        }
+        self.request("POST", f"/v1/clients/{self.client_id}/access", report)
         return report
 
     def fix(self, lockfile, emergency_id, test_command, open_pr=False):

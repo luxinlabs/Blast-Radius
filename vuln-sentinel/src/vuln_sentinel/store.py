@@ -390,6 +390,21 @@ class Store:
                 )
         return {"accepted": True, "findings": len(report.findings)}
 
+    def access_report(self, client, report, actor):
+        with self.transaction() as c:
+            self.event(c, client, actor, "ACCESS_REPORTED", {"findings": len(report.findings)})
+            for f in report.findings:
+                priority = "P0" if f.rule == "UNAUTHORIZED_PRINCIPAL" else "P1"
+                self.notify(
+                    c,
+                    digest([client, "ACCESS_ANOMALY", f.model_dump()]),
+                    client,
+                    "ACCESS_ANOMALY",
+                    priority,
+                    f.model_dump(),
+                )
+        return {"accepted": True, "findings": len(report.findings)}
+
     def events(self, client):
         with self.transaction() as c:
             return self.rows(

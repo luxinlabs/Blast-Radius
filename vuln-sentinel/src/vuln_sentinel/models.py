@@ -163,3 +163,17 @@ class Action(StrictModel):
 class AgentResponse(StrictModel):
     summary: str = Field(min_length=3, max_length=2000)
     actions: list[Action] = Field(default_factory=list, max_length=50)
+
+
+class AccessFinding(StrictModel):
+    rule: Literal["UNAUTHORIZED_PRINCIPAL", "EXCESSIVE_ACCESS", "NEW_SOURCE_IP"]
+    principal: str = Field(min_length=1, max_length=200)
+    resources: list[str] = Field(min_length=1, max_length=100)
+    count: int = Field(ge=1)
+    first_seen: str = Field(max_length=40)
+    last_seen: str = Field(max_length=40)
+    ips: list[str] = Field(max_length=50)
+
+
+class AccessReport(StrictModel):
+    findings: list[AccessFinding] = Field(default_factory=list, max_length=1000)

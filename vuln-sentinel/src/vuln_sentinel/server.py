@@ -14,6 +14,7 @@ from .backend import DemoBackend, SnowflakeBackend
 from .config import Principal, Settings
 from .models import (
     SBOM,
+    AccessReport,
     AgentResponse,
     Proposal,
     ResponseRequest,
@@ -265,6 +266,13 @@ def create_app(settings=None, service=None):
     @app.post("/v1/clients/{client_id}/reports")
     def report(client_id: str, body: ScanReport):
         return report_scan(client_id, body)
+
+    @app.post("/v1/clients/{client_id}/access")
+    def access(client_id: str, body: AccessReport):
+        p = identity.get()
+        p.require("admin", "agent")
+        p.tenant(client_id)
+        return service.store.access_report(client_id, body, p.subject)
 
     @app.post("/v1/clients/{client_id}/proposals")
     def proposal(client_id: str, body: Proposal):
