@@ -121,6 +121,9 @@ def main():
     dashboard.add_argument("--port", type=int, default=8501)
     scan = sub.add_parser("scan")
     scan.add_argument("lockfile")
+    code_map = sub.add_parser("map")
+    code_map.add_argument("root", help="Source tree to scan")
+    code_map.add_argument("lockfile", help="Lockfile naming the installed packages")
     hunt = sub.add_parser("hunt")
     hunt.add_argument("logs", nargs="+")
     fix = sub.add_parser("fix")
@@ -177,6 +180,8 @@ def main():
             )
             if args.command == "scan":
                 result = client.scan(args.lockfile)
+            elif args.command == "map":
+                result = client.map_code(args.root, args.lockfile)
             elif args.command == "hunt":
                 result = client.hunt(args.logs)
             elif args.command == "fix":

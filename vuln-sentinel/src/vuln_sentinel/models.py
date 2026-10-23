@@ -104,3 +104,19 @@ class Review(StrictModel):
     decision: Literal["APPROVED", "REJECTED"]
     reason: str = Field(min_length=3, max_length=2000)
     revision: str
+
+
+class Usage(StrictModel):
+    ecosystem: str
+    package: str
+    file: str = Field(min_length=1, max_length=500)
+    symbol: str = Field(min_length=1, max_length=200)
+
+    @model_validator(mode="after")
+    def canonical(self):
+        self.ecosystem, self.package = normalize(self.ecosystem, self.package)
+        return self
+
+
+class UseCaseMap(StrictModel):
+    usages: list[Usage] = Field(min_length=1, max_length=20000)

@@ -18,6 +18,7 @@ TABLES = {
     "client_sbom": "client_id VARCHAR NOT NULL, revision VARCHAR NOT NULL, payload VARCHAR NOT NULL, created_at VARCHAR NOT NULL, PRIMARY KEY(client_id, revision)",
     "emergencies": "emergency_id VARCHAR PRIMARY KEY, client_id VARCHAR NOT NULL, revision VARCHAR NOT NULL, fingerprint VARCHAR NOT NULL, status VARCHAR NOT NULL, payload VARCHAR NOT NULL, proposal VARCHAR, reviewer VARCHAR, reason VARCHAR, created_at VARCHAR NOT NULL, updated_at VARCHAR NOT NULL",
     "agent_events": "event_id VARCHAR PRIMARY KEY, client_id VARCHAR NOT NULL, actor VARCHAR NOT NULL, kind VARCHAR NOT NULL, payload VARCHAR NOT NULL, created_at VARCHAR NOT NULL",
+    "use_cases": "client_id VARCHAR PRIMARY KEY, payload VARCHAR NOT NULL, created_at VARCHAR NOT NULL",
 }
 
 
@@ -142,6 +143,20 @@ class Store:
                     {"revision": revision, "packages": len(sbom.packages)},
                 )
         return {"client_id": client, "revision": revision, "packages": len(sbom.packages)}
+
+    def set_use_cases(self, client, use_cases, actor):
+        with self.transaction() as c:
+            self.execute(c, f"DELETE FROM {self.table('use_cases')} WHERE client_id=?", [client])
+            self.execute(
+                c, f"INSERT INTO {self.table('use_cases')} VALUES (?,?,?)", [client, encode(use_cases), now()]
+            )
+            self.event(c, client, actor, "USE_CASES_MAPPED", {"use_cases": len(use_cases)})
+        return {"client_id": client, "use_cases": len(use_cases)}
+
+    def get_use_cases(self, client):
+        with self.transaction() as c:
+            rows = self.rows(c, f"SELECT payload FROM {self.table('use_cases')} WHERE client_id=?", [client])
+        return json.loads(rows[0]["payload"]) if rows else []
 
     def latest_sboms(self, client=None):
         with self.transaction() as c:

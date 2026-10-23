@@ -13,6 +13,7 @@ import httpx
 from .intel import normalize_indicator
 from .lockfiles import parse_lockfile
 from .store import digest
+from .usecases import scan_repo
 
 
 class Client:
@@ -41,6 +42,13 @@ class Client:
         response = self.request("POST", f"/v1/clients/{self.client_id}/reconcile")
         incidents = self.request("GET", f"/v1/emergencies?client_id={self.client_id}")
         return {"snapshot": snapshot, "scan": response, "emergencies": incidents, "warnings": sbom.warnings}
+
+    def map_code(self, root, lockfile):
+        known = {(p.ecosystem, p.name) for p in parse_lockfile(lockfile).packages}
+        usages = scan_repo(root, known)
+        if not usages:
+            raise ValueError("No usages of installed packages found in this source tree")
+        return self.request("POST", f"/v1/clients/{self.client_id}/usecases", {"usages": usages})
 
     def hunt(self, paths):
         indicators = self.request("GET", "/v1/indicators")
