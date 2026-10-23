@@ -123,7 +123,15 @@ What didn't work or got cut:
 
 The natural owner is a company's AppSec team. They own the advisory evidence and the reviewer role. Platform engineering co-owns it, because they make the gate a required CI check. The Snowflake data layer fits teams that already keep security and engineering data in Snowflake.
 
-Next steps:
+**Next step: an early-warning partnership with Anthropic.** Anthropic's security researchers and Claude find serious vulnerabilities in widely used open-source software. Today, everyone learns about a flaw on disclosure day, the same moment attackers do, and the race starts there. We want to be a trusted early recipient under coordinated disclosure. When Anthropic finds a severe issue, they brief us under embargo, and we prepare a response for every client before the advisory goes public:
+
+- **Know who is exposed before disclosure.** We already hold each client's exact inventory, including packages pulled in transitively, so we can list affected organizations and the business functions at risk without telling anyone the details.
+- **Have the fix ready.** Patch candidates and tested fix branches are staged in advance, so clients merge a reviewed change instead of starting from scratch.
+- **Switch on the gate at disclosure.** Version blocks are pre-approved by each client's reviewer and go live the moment the advisory is published, so no affected build ships during the race.
+
+The result: our clients are ready before attackers have the details, instead of hours behind. This would follow standard coordinated disclosure rules. Nothing goes to clients before the agreed date beyond a "prepare for an update" notice, and pre-staged changes stay inside each client's own review process.
+
+Other next steps:
 
 1. Move the API and dashboard into Snowpark Container Services and turn on the hourly matching task. The data layer, migrations 10–15 and the native procedure already run live.
 2. Pilot it with one team: time exposure decisions and fix proposals against manual triage.

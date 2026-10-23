@@ -22,7 +22,7 @@ These three sections total about one minute. Deliver the closing after the live 
 
 ### Closing — 20 seconds, after the live demo
 
-> You just saw the affected inventory fail, the clean inventory pass, and the reviewer’s decision recorded. That is our result: evidence translated into a decision a deployment pipeline can enforce. Next, we’ll validate the live Snowflake connection and measure response time against manual triage. Blast Radius makes the response explicit, reviewable, and enforceable.
+> You just saw the affected inventory fail, the clean inventory pass, and the reviewer’s decision recorded. That is our result: evidence translated into a decision a deployment pipeline can enforce. Next, we want to partner with Anthropic. When their researchers find a severe vulnerability, they can brief us under coordinated disclosure, so our clients have the fix staged and the gate ready before attackers ever see the advisory. Blast Radius makes the response explicit, reviewable, and enforceable.
 
 ## Complete three-minute run of show
 
@@ -211,7 +211,7 @@ Deliver the closing script, pause, and stop. Avoid adding a last-minute feature 
 | **0:20–0:32** | Dashboard: select **Chalk 5.6.1**, then highlight the dependency path and the affected use case. | "Blast Radius checks exact installed versions against advisories in Snowflake. It shows the full chain, and Claude maps it to the business function at risk." |
 | **0:32–0:42** | Click **Run response agents**, then cut to the scanner, patch and containment cards. | "Agents recheck the exposure, find a clean upgrade and propose a block. They can't approve their own actions." |
 | **0:42–0:50** | Human review: approve. Then the terminal: affected gate `allowed: false`, clean gate `allowed: true`. | "A reviewer approves. The affected build is rejected and the clean one passes." |
-| **0:50–1:00** | Closing card: "1,000 orgs · every exposed org found in 5.5 s · 0 false blocks." Then the logo. | "Across a thousand organizations, we found every exposed one in under six seconds. Blast Radius: know your exposure before the next build ships." |
+| **0:50–1:00** | Closing card: "1,000 orgs · every exposed org found in 5.5 s · 0 false blocks." Then "Next: early warning with Anthropic" and the logo. | "We found every exposed org out of a thousand in under six seconds. Next, with early warning from Anthropic, our clients are ready before attackers are." |
 
 **Recording tips**
 
