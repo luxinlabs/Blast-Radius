@@ -1,0 +1,81 @@
+ECOSYSTEM,NAME,RUNS_WHERE,IS_MOSTLY_TRANSITIVE,HANDLES_SECRETS,SECRET_TYPES,DEMO_REASON,ADDED_AT
+npm,axios,frontend+backend,False,True,"[
+  ""auth headers"",
+  ""api tokens""
+]",Most-installed HTTP client; blast radius spans browser bundles and servers,2026-10-23 12:07:14.992000-07:00
+npm,express,backend,False,False,"[
+  """"
+]",Default Node server; middleware on every request path,2026-10-23 12:07:14.992000-07:00
+npm,next,frontend+ssr,False,True,"[
+  ""server env vars"",
+  ""session cookies""
+]",Middleware auth bypass precedent; customer-facing sites,2026-10-23 12:07:14.992000-07:00
+npm,react,frontend+ssr,False,False,"[
+  """"
+]",Server Components RCE precedent,2026-10-23 12:07:14.992000-07:00
+npm,react-dom,frontend+ssr,False,False,"[
+  """"
+]",Server rendering path for React,2026-10-23 12:07:14.992000-07:00
+npm,lodash,everywhere,True,False,"[
+  """"
+]",Repeated prototype-pollution CVEs; buried in dependency trees,2026-10-23 12:07:14.992000-07:00
+npm,debug,everywhere,True,False,"[
+  """"
+]",Sep 2025 maintainer-phish hijack target; mostly transitive,2026-10-23 12:07:14.992000-07:00
+npm,chalk,everywhere,True,False,"[
+  """"
+]",Sep 2025 maintainer-phish hijack target; mostly transitive,2026-10-23 12:07:14.992000-07:00
+npm,ansi-styles,everywhere,True,False,"[
+  """"
+]",Sep 2025 maintainer-phish hijack target; mostly transitive,2026-10-23 12:07:14.992000-07:00
+npm,jsonwebtoken,backend,False,True,"[
+  ""jwt signing keys""
+]",Signature-verification CVEs mean login auth bypass,2026-10-23 12:07:14.992000-07:00
+npm,ua-parser-js,frontend+backend,False,False,"[
+  """"
+]",2021 account hijack shipped a miner and stealer,2026-10-23 12:07:14.992000-07:00
+PyPI,requests,backend,False,True,"[
+  ""auth headers"",
+  ""api tokens""
+]",Effectively universal Python HTTP client,2026-10-23 12:07:14.992000-07:00
+PyPI,urllib3,backend,True,True,"[
+  ""auth headers""
+]","Transitive under requests, boto3/botocore and more",2026-10-23 12:07:14.992000-07:00
+PyPI,certifi,backend,True,False,"[
+  """"
+]",Holds the CA trust bundle used by requests,2026-10-23 12:07:14.992000-07:00
+PyPI,cryptography,backend,False,True,"[
+  ""private keys"",
+  ""tls""
+]",Bundles OpenSSL; OpenSSL CVEs flow through it,2026-10-23 12:07:14.992000-07:00
+PyPI,django,backend,False,True,"[
+  ""SECRET_KEY"",
+  ""db creds""
+]",Request-path framework with regular CVEs,2026-10-23 12:07:14.992000-07:00
+PyPI,flask,backend,False,True,"[
+  ""SECRET_KEY""
+]",Request-path framework,2026-10-23 12:07:14.992000-07:00
+PyPI,fastapi,backend,False,False,"[
+  """"
+]",Request-path framework built on starlette,2026-10-23 12:07:14.992000-07:00
+PyPI,starlette,backend,True,False,"[
+  """"
+]",Multipart-parsing DoS history,2026-10-23 12:07:14.992000-07:00
+PyPI,python-multipart,backend,True,False,"[
+  """"
+]",Multipart-parsing DoS history,2026-10-23 12:07:14.992000-07:00
+PyPI,jinja2,backend,True,False,"[
+  """"
+]",Sandbox-escape history,2026-10-23 12:07:14.992000-07:00
+PyPI,pyyaml,backend,True,False,"[
+  """"
+]",Unsafe-load history,2026-10-23 12:07:14.992000-07:00
+PyPI,boto3,backend,False,True,"[
+  ""aws credentials""
+]",Runs with cloud credentials in memory,2026-10-23 12:07:14.992000-07:00
+PyPI,botocore,backend,True,True,"[
+  ""aws credentials""
+]",Runs with cloud credentials in memory,2026-10-23 12:07:14.992000-07:00
+PyPI,litellm,backend,False,True,"[
+  ""llm provider api keys""
+]",AI gateway holding LLM keys; recent compromise report,2026-10-23 12:07:14.992000-07:00

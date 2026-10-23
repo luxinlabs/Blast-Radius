@@ -1,0 +1,21 @@
+INCIDENT_TYPE,STEP_NO,PHASE,ACTION,APPLIES_WHEN,OWNER,AUTOMATABLE
+MALICIOUS_RELEASE,1,CONTAIN,"Freeze deploys and CI for affected services; block the bad version in the registry proxy/firewall (Artifactory, Nexus, pip/npm config)",always,SRE,True
+MALICIOUS_RELEASE,2,CONTAIN,Pin to the recommended safe version in manifest + lockfile; regenerate lockfile with --frozen/--require-hashes,always,agent,True
+MALICIOUS_RELEASE,3,ERADICATE,"Purge package caches (~/.npm, node_modules, pip cache, wheelhouse, Docker layers) and rebuild images from clean base",always,agent,True
+MALICIOUS_RELEASE,4,ERADICATE,"Treat every host/CI runner that installed the version as compromised: re-image, do not just uninstall",always,SRE,False
+MALICIOUS_RELEASE,5,RECOVER,"Rotate all secrets reachable from affected hosts, from a clean machine",handles_secrets,SRE,False
+MALICIOUS_RELEASE,6,INVESTIGATE,Hunt IOCs in egress/DNS/auth logs for the install window (from first publish of bad version until pin); check for new persistence files,always,agent,True
+MALICIOUS_RELEASE,7,INVESTIGATE,Check egress to AI/LLM endpoints and anonymizers (Edg3 egress + Tor lists) from affected hosts,handles_secrets,agent,True
+MALICIOUS_RELEASE,8,COMMUNICATE,Notify downstream consumers in blast radius; file incident record with timeline,always,human,False
+VULNERABILITY,1,ASSESS,Confirm installed version is in affected range and the vulnerable code path is reachable (feature/config used?),always,agent,True
+VULNERABILITY,2,ASSESS,"Prioritise: CRITICAL/HIGH, exploited-in-the-wild (CISA KEV / DVE score), internet-facing tier first",always,agent,True
+VULNERABILITY,3,REMEDIATE,Upgrade to the lowest fixed version on the current major; open PR with tests,fix_available,agent,True
+VULNERABILITY,4,MITIGATE,"No fix yet: apply compensating control (WAF rule, header strip, disable feature flag, input limits)",no_fix,SRE,False
+VULNERABILITY,5,VERIFY,"Re-scan lockfile, run test suite, replay sanitized production requests in staging",always,agent,True
+VULNERABILITY,6,APPROVE,"Human reviews diff, reachability evidence and rollback plan before merge",always,human,False
+UNAVAILABLE,1,CONTAIN,Package/version unpublished or yanked: pin to last good published version,always,agent,True
+UNAVAILABLE,2,RECOVER,Serve from internal mirror/vendor directory; enable registry proxy caching,always,SRE,False
+UNAVAILABLE,3,ASSESS,"If yanked for security reasons, escalate to MALICIOUS_RELEASE or VULNERABILITY playbook",always,agent,True
+TRUST_STORE,1,ASSESS,CA bundle change (e.g. certifi): diff added/removed roots vs current bundle,always,agent,True
+TRUST_STORE,2,REMEDIATE,Upgrade certifi or OS trust store; check services pinning certificates or using custom bundles,always,agent,True
+TRUST_STORE,3,VERIFY,Run TLS handshake checks against all outbound dependencies before rollout,always,SRE,True
