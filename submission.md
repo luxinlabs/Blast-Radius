@@ -64,9 +64,22 @@ Snowflake holds the evidence and makes the decisions. The application layer talk
 - **Threat intel:** an `INTEL.SIGNAL_FEED` adapter is designed to take **Snowflake Marketplace** listings (CISA KEV, Tor exits, AI-endpoint egress) and use them to raise incident priority.
 - **App surfaces:** a FastAPI service with 10 **MCP tools** so Claude can inspect evidence and prepare responses. Approval is deliberately not one of those tools. A Streamlit review dashboard and a local client agent read lockfiles and logs where they live and upload only the normalized inventory and indicator counts. **Snowpark Container Services** specs are included to run the API and dashboard inside Snowflake.
 
+**Live status:** everything above except Container Services and Marketplace intel runs on the hackathon Snowflake account. Migrations 10–15 are applied, and the app's tracking state (clients, inventories, incidents, notifications, use-case maps, audit events) is in Snowflake tables instead of local SQLite. Three example client organizations are registered. A call to the native `MATCH_CLIENT_ADVISORIES` procedure checked all 8 of their packages with no errors or unknowns and opened one incident. Cortex `AI_COMPLETE` with `claude-sonnet-4-5` answers from inside the account. The API and dashboard still run on a laptop and connect with the `SENTINEL_BACKEND=snowflake` setting.
+
+## Why Snowflake
+
+Supply-chain risk is a shared-data problem. Every organization checks its code against the same advisories and the same package registries. Our design follows from that.
+
+- **One catalog, many organizations.** The 257,000 advisories and 4 million package versions are loaded once and serve every client. Adding an organization means adding a few rows of inventory, not a new deployment, database or pipeline. The more organizations use the catalog, the lower the cost of each one.
+- **The database keeps growing without a rebuild.** Storage and compute are separate, so the catalog can grow to more ecosystems, more history and more client inventories without re-architecting. The warehouse is X-Small and suspends when idle. A full advisory refresh can borrow a larger warehouse for minutes and then release it.
+- **Agents update it safely.** Client agents upload inventories, scheduled Tasks refresh advisories and re-check every client every hour, and Claude writes through MCP tools. All of them work on the same governed tables. A role-scoped app account can add audit events but never edit or delete them, and a Hybrid Table lock keeps concurrent agents from overwriting each other. Humans approve; agents never do.
+- **The decision runs next to the data.** The affected-version logic (Snowpark), the hourly reconciliation (Tasks) and the incident briefs and use-case labels (Claude through Cortex) all run inside Snowflake. Inventory and advisories never travel to a separate LLM gateway, queue or server, so there's less to secure and less to run.
+- **Security data is already there.** Many security and platform teams keep logs and asset inventories in Snowflake. Blast Radius adds supply-chain exposure to that same governed store, rather than asking a CISO to approve one more SaaS copy of their software inventory.
+- **A path to distribution (next step, not built).** Snowflake Secure Data Sharing and the Marketplace let a security vendor or an industry information-sharing group publish the advisory catalog once. Each subscribing organization would query it live from its own account, so its inventory never leaves its own boundary. Threat-intel providers already publish feeds this way, and our `INTEL.SIGNAL_FEED` adapter is built to take them.
+
 ## Snowflake Account Identifier
 
-`<orgname-accountname>`
+`SFSEHOL-ANTHROPIC_SNOWFLAKE_HACKATHON_XCAYXS` (database `VULN_SENTINEL_DB`)
 
 ## A Short Build Story
 
@@ -77,6 +90,7 @@ What didn't work or got cut:
 - **Three autonomous Claude agents.** We first pictured separate scanner, patch and containment models. We replaced them with deterministic workflow agents that Claude calls through MCP, because an agent that can approve its own containment is not a security control.
 - **Automatic transitive npm fixes.** Upgrading a nested package like Chalk silently changes what the parent package depends on. The fix workflow now stops and asks for a reviewed upgrade of the parent package or an override.
 - **Re-running the base schema.** Our first deployment script dropped and rebuilt the database. We switched to additive migrations so the loaded data survives.
+- **A safety fix that passed tests but failed live.** Our "lowest clean upgrade" query called a Python UDF inside a correlated `NOT EXISTS`. Local tests passed, but Snowflake rejected it ("Unsupported subquery type"). We rewrote it as an anti-join and redeployed. It still fails closed.
 - **Live Marketplace intel.** Listings require accepting terms and use schemas that vary by provider, so we built a neutral adapter instead of guessing column names.
 - **Snowpark Container Services hosting.** The specs are written, but we didn't validate them end to end in the time we had.
 
@@ -86,10 +100,11 @@ The natural owner is a company's AppSec team. They own the advisory evidence and
 
 Next steps:
 
-1. Validate the Snowflake-backed path end to end on a live account: run migrations 10–15, then the native task.
+1. Move the API and dashboard into Snowpark Container Services and turn on the hourly matching task. The data layer, migrations 10–15 and the native procedure already run live.
 2. Pilot it with one team: time exposure decisions and fix proposals against manual triage.
 3. Connect a licensed Marketplace threat-intel feed.
-4. Add one production containment connector, such as a registry or proxy block.
+4. Publish the advisory catalog as a Secure Share so a second organization can use it from its own account.
+5. Add one production containment connector, such as a registry or proxy block.
 
 ## Which Partner Tools Did You Use?
 
@@ -101,5 +116,5 @@ Next steps:
 
 - **Claude Code:** it was strongest at multi-file work across Python, SQL and tests. It was good at catching places where the code or the pitch claimed more than we could show, like calling an unknown result "safe" or saying a fix ran when it hadn't. The friction was keeping it from building ahead of what we had validated live. We needed explicit notes saying which features were fixtures and which were live.
 - **Cortex `AI_COMPLETE`:** calling Claude from inside a stored procedure, next to the data, was the simplest way to ground summaries in query results. It would help to have clearer docs on which Claude models are available in each region and on cost per call.
-- **Snowflake:** Snowpark procedures and Tasks made the decisions repeatable without extra infrastructure. Hybrid Tables gave us a real lock for concurrent writes. The setup-heavy features slowed us down: Marketplace terms, compute-pool privileges for Container Services, and external access integrations. An end-to-end hackathon template for "Git repo → stage → procedure → task" would save teams a lot of time.
+- **Snowflake:** Snowpark procedures and Tasks made the decisions repeatable without extra infrastructure. Hybrid Tables gave us a real lock for concurrent writes. The setup-heavy features slowed us down: Marketplace terms, compute-pool privileges for Container Services, and external access integrations. An end-to-end hackathon template for "Git repo → stage → procedure → task" would save teams a lot of time. A clearer compile-time error for UDFs inside correlated subqueries would have saved us a debugging round, since the failure only shows up when the procedure runs.
 - **MCP:** a good fit for scoped tools. Being able to leave approval out of the tool list was an easy, clear safety boundary. OAuth examples for remote MCP servers would help.

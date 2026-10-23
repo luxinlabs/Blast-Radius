@@ -81,7 +81,7 @@ def test_candidate_query_covers_non_watchlist_and_fails_closed():
         if "SELECT version, yanked" in sql:
             return [{"VERSION": "1.0.0", "YANKED": False, "DEPRECATED": None, "PUBLISHED_AT": None}]
         if "SELECT v.version" in sql:
-            assert "NOT EXISTS" in sql and "IS_AFFECTED" in sql and "COALESCE" in sql
+            assert "bad.version IS NULL" in sql and "IS_AFFECTED" in sql and "), TRUE)" in sql
             assert "PACKAGE_VERSION_RISK" not in sql
             return [{"VERSION": "1.2.0"}, {"VERSION": "1.1.0"}]
         return []
