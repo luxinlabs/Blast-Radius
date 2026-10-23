@@ -1,0 +1,24 @@
+spec:
+  containers:
+    - name: api
+      image: /vuln_sentinel_db/serving/images/vuln-sentinel:latest
+      env:
+        SENTINEL_BACKEND: snowflake
+        SNOWFLAKE_CONNECTION_NAME: vuln_sentinel
+        SNOWFLAKE_WAREHOUSE: DEFAULT_WH
+      secrets:
+        - snowflakeSecret: vuln_sentinel_db.serving.sentinel_tokens
+          secretKeyRef: secret_string
+          envVarName: SENTINEL_TOKENS
+    - name: dashboard
+      image: /vuln_sentinel_db/serving/images/vuln-sentinel:latest
+      command: ["python", "-m", "streamlit", "run", "/app/src/vuln_sentinel/dashboard.py", "--server.address", "0.0.0.0", "--server.port", "8501", "--server.enableCORS", "false", "--server.enableXsrfProtection", "false", "--browser.gatherUsageStats", "false"]
+      env:
+        SENTINEL_URL: http://localhost:8000
+  endpoints:
+    - name: dashboard
+      port: 8501
+      public: true
+    - name: api
+      port: 8000
+      public: true
