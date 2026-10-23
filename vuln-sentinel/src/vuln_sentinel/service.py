@@ -43,6 +43,27 @@ def client_blast_radius(sbom, package):
     }
 
 
+def client_impact(use_cases, package, blast):
+    """Use cases whose code calls the package, or a package that depends on it."""
+    names = {package.name, *(d["dependent"] for d in blast["dependents"])}
+    impacts = []
+    for case in use_cases:
+        hits = [u for u in case["usages"] if u["ecosystem"] == package.ecosystem and u["package"] in names]
+        if hits:
+            impacts.append(
+                {
+                    "package": f"{package.ecosystem}/{package.name}@{package.version}",
+                    "use_case": case["name"],
+                    "criticality": case["criticality"],
+                    "status": "compromised",
+                    "functionalities_affected": [
+                        {"file": u["file"], "symbol": u["symbol"], "via": u["package"]} for u in hits
+                    ],
+                }
+            )
+    return impacts
+
+
 class Service:
     def __init__(self, backend, store):
         self.backend, self.store = backend, store
@@ -51,7 +72,60 @@ class Service:
         if hasattr(self.backend, "load_intel"):
             self.backend.load_intel()
         result = self.backend.respond(request.ecosystem, request.package, request.version, request.ai_brief)
-        return self.backend.intel.enrich(result)
+        return self.backend.intel.enrich(self.with_threats(result))
+
+    def with_threats(self, result):
+        """Overlay injected threat events: a matching version is a malicious release with no safe fallback."""
+        pkg = result["package"]
+        for threat in self.store.threats(pkg["ecosystem"], pkg["name"]):
+            if pkg["version"] in threat["versions"]:
+                advisories = [
+                    {
+                        "advisory_id": threat["advisory_id"],
+                        "severity": "CRITICAL",
+                        "summary": "Injected threat event",
+                    },
+                    *result.get("advisories", []),
+                ]
+                safe = {
+                    k: v
+                    for k, v in result.get("recommended_version", {}).items()
+                    if v not in threat["versions"]
+                }
+                return {
+                    **result,
+                    "incident_type": "MALICIOUS_RELEASE",
+                    "advisories": advisories,
+                    "advisory_count": len(advisories),
+                    "recommended_version": safe,
+                    "secrets_at_risk": True,
+                    "synthetic": True,
+                }
+        return result
+
+    def impacts(self, client):
+        """Per (package, use case) status: compromised from open emergencies, otherwise safe."""
+        cases = self.store.get_use_cases(client)
+        rows = [
+            i
+            for e in self.store.list_emergencies(client)
+            if e["status"] != "SUPERSEDED"
+            for i in e["payload"].get("client_impact", [])
+        ]
+        hit = {r["use_case"] for r in rows}
+        for case in cases:
+            if case["name"] not in hit:
+                rows += [
+                    {
+                        "package": f"{case['usages'][0]['ecosystem']}/{name}",
+                        "use_case": case["name"],
+                        "criticality": case["criticality"],
+                        "status": "safe",
+                        "functionalities_affected": [],
+                    }
+                    for name in sorted({u["package"] for u in case["usages"]})
+                ]
+        return rows
 
     def reconcile(self, actor, client=None):
         from .models import ResponseRequest
@@ -60,6 +134,7 @@ class Service:
         cache = {}
         for snapshot in self.store.latest_sboms(client):
             sbom = SBOM.model_validate_json(snapshot["payload"])
+            use_cases = self.store.get_use_cases(snapshot["client_id"])
             unique = {(p.ecosystem, p.name, p.version): p for p in sbom.packages}
             for key, package in unique.items():
                 try:
@@ -69,7 +144,12 @@ class Service:
                                 ecosystem=package.ecosystem, package=package.name, version=package.version
                             )
                         )
-                    result = {**cache[key], "client_blast_radius": client_blast_radius(sbom, package)}
+                    blast = client_blast_radius(sbom, package)
+                    result = {
+                        **cache[key],
+                        "client_blast_radius": blast,
+                        "client_impact": client_impact(use_cases, package, blast),
+                    }
                     checked += 1
                     if result["incident_type"] == "UNKNOWN":
                         unknown.append({"client_id": snapshot["client_id"], "package": package.model_dump()})

@@ -120,3 +120,17 @@ class Usage(StrictModel):
 
 class UseCaseMap(StrictModel):
     usages: list[Usage] = Field(min_length=1, max_length=20000)
+
+
+class ThreatEvent(StrictModel):
+    ecosystem: str
+    package: str
+    versions: list[str] = Field(min_length=1, max_length=50)
+    advisory_id: str = Field(default="DEMO-INJECTED", min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def exact(self):
+        for version in self.versions:
+            p = Package(ecosystem=self.ecosystem, name=self.package, version=version)
+        self.ecosystem, self.package = p.ecosystem, p.name
+        return self

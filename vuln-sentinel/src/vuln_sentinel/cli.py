@@ -124,6 +124,11 @@ def main():
     code_map = sub.add_parser("map")
     code_map.add_argument("root", help="Source tree to scan")
     code_map.add_argument("lockfile", help="Lockfile naming the installed packages")
+    inject = sub.add_parser("inject", help="Demo: publish a compromised version, then reconcile the fleet")
+    inject.add_argument("ecosystem")
+    inject.add_argument("package")
+    inject.add_argument("versions", nargs="+")
+    inject.add_argument("--advisory", default="DEMO-INJECTED")
     hunt = sub.add_parser("hunt")
     hunt.add_argument("logs", nargs="+")
     fix = sub.add_parser("fix")
@@ -180,6 +185,20 @@ def main():
             )
             if args.command == "scan":
                 result = client.scan(args.lockfile)
+            elif args.command == "inject":
+                admin = Client(
+                    str(client.http.base_url), os.environ["SENTINEL_ADMIN_TOKEN"], client.client_id
+                )
+                event = {
+                    "ecosystem": args.ecosystem,
+                    "package": args.package,
+                    "versions": args.versions,
+                    "advisory_id": args.advisory,
+                }
+                result = {
+                    "threat": admin.request("POST", "/v1/demo/threats", event),
+                    "reconcile": admin.request("POST", "/v1/reconcile"),
+                }
             elif args.command == "map":
                 result = client.map_code(args.root, args.lockfile)
             elif args.command == "hunt":

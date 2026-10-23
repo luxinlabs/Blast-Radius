@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from .backend import DemoBackend, SnowflakeBackend
 from .config import Principal, Settings
-from .models import SBOM, Proposal, ResponseRequest, Review, ScanReport, UseCaseMap
+from .models import SBOM, Proposal, ResponseRequest, Review, ScanReport, ThreatEvent, UseCaseMap
 from .service import Service
 from .store import Store
 
@@ -195,6 +195,17 @@ def create_app(settings=None, service=None):
     @app.post("/v1/clients/{client_id}/sbom")
     def sbom(client_id: str, body: SBOM):
         return register_sbom(client_id, body)
+
+    @app.post("/v1/demo/threats")
+    def threat(body: ThreatEvent):
+        p = identity.get()
+        p.require("admin")
+        return service.store.add_threat(body, p.subject)
+
+    @app.get("/v1/clients/{client_id}/impacts")
+    def impacts(client_id: str):
+        identity.get().tenant(client_id)
+        return service.impacts(client_id)
 
     @app.post("/v1/clients/{client_id}/usecases")
     def usecases(client_id: str, body: UseCaseMap):

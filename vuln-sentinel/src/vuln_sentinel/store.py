@@ -18,6 +18,7 @@ TABLES = {
     "client_sbom": "client_id VARCHAR NOT NULL, revision VARCHAR NOT NULL, payload VARCHAR NOT NULL, created_at VARCHAR NOT NULL, PRIMARY KEY(client_id, revision)",
     "emergencies": "emergency_id VARCHAR PRIMARY KEY, client_id VARCHAR NOT NULL, revision VARCHAR NOT NULL, fingerprint VARCHAR NOT NULL, status VARCHAR NOT NULL, payload VARCHAR NOT NULL, proposal VARCHAR, reviewer VARCHAR, reason VARCHAR, created_at VARCHAR NOT NULL, updated_at VARCHAR NOT NULL",
     "agent_events": "event_id VARCHAR PRIMARY KEY, client_id VARCHAR NOT NULL, actor VARCHAR NOT NULL, kind VARCHAR NOT NULL, payload VARCHAR NOT NULL, created_at VARCHAR NOT NULL",
+    "threat_events": "event_id VARCHAR PRIMARY KEY, ecosystem VARCHAR NOT NULL, name VARCHAR NOT NULL, payload VARCHAR NOT NULL, created_at VARCHAR NOT NULL",
     "use_cases": "client_id VARCHAR PRIMARY KEY, payload VARCHAR NOT NULL, created_at VARCHAR NOT NULL",
 }
 
@@ -157,6 +158,25 @@ class Store:
         with self.transaction() as c:
             rows = self.rows(c, f"SELECT payload FROM {self.table('use_cases')} WHERE client_id=?", [client])
         return json.loads(rows[0]["payload"]) if rows else []
+
+    def add_threat(self, threat, actor):
+        with self.transaction() as c:
+            self.execute(
+                c,
+                f"INSERT INTO {self.table('threat_events')} VALUES (?,?,?,?,?)",
+                [uuid.uuid4().hex, threat.ecosystem, threat.package, encode(threat.model_dump()), now()],
+            )
+            self.event(c, "fleet", actor, "THREAT_INJECTED", threat.model_dump())
+        return {"injected": True, **threat.model_dump()}
+
+    def threats(self, ecosystem, name):
+        with self.transaction() as c:
+            rows = self.rows(
+                c,
+                f"SELECT payload FROM {self.table('threat_events')} WHERE ecosystem=? AND name=?",
+                [ecosystem, name],
+            )
+        return [json.loads(r["payload"]) for r in rows]
 
     def latest_sboms(self, client=None):
         with self.transaction() as c:
