@@ -123,6 +123,7 @@ def test_dashboard_login_and_review(stack, incident, monkeypatch):
     app.run()
     assert not app.exception, [e.message for e in app.exception]
     assert len(app.metric) == 4
+    assert "Notification center" in [h.value for h in app.subheader]
     notes = next(area for area in app.text_area if area.label == "Review notes (required)")
     notes.set_value("Reviewed fixture evidence and passing tests")
     next(button for button in app.button if button.label == "Record review").click().run()

@@ -36,9 +36,54 @@ try:
         st.warning("LOCAL DEMO · synthetic fixture evidence · no live OSV or Marketplace connection")
     suffix = f"?client_id={client_id}" if client_id else ""
     emergencies = client.request("GET", f"/v1/emergencies{suffix}")
+    notifications = client.request("GET", f"/v1/notifications{suffix}")
+    impacts = client.request("GET", f"/v1/clients/{client_id}/impacts") if client_id else []
 except (httpx.HTTPError, ValueError) as exc:
     st.error(f"Cannot load fleet: {exc}")
     st.stop()
+
+
+def detail(n):
+    p = n["payload"]
+    if n["kind"] == "THREAT":
+        return f"{p['package']['name']} {p['package']['version']} · {p['incident_type']}"
+    if n["kind"] == "ACCESS_ANOMALY":
+        return f"{p['rule']} · {p['principal']} · {p['count']} accesses"
+    return f"{len(p['findings'])} indicator match(es)"
+
+
+st.subheader("Notification center")
+st.dataframe(
+    [
+        {
+            "client": n["client_id"],
+            "kind": n["kind"],
+            "priority": n["priority"],
+            "status": n["status"],
+            "detail": detail(n),
+            "agent actions": len((n["response"] or {}).get("actions", [])),
+        }
+        for n in notifications
+    ],
+    use_container_width=True,
+    hide_index=True,
+)
+if impacts:
+    st.subheader(f"Use-case impact · {client_id}")
+    st.dataframe(
+        [
+            {
+                "status": ("🔴 " if i["status"] == "compromised" else "🟢 ") + i["status"],
+                "use case": i["use_case"],
+                "package": i["package"],
+                "criticality": i["criticality"],
+                "functions affected": ", ".join(f["symbol"] for f in i["functionalities_affected"]),
+            }
+            for i in impacts
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
 
 visible = [e for e in emergencies if e["status"] in statuses]
 cols = st.columns(4)
