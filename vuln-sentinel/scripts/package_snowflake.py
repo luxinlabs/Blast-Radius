@@ -9,6 +9,7 @@ files = [
     "models.py",
     "config.py",
     "store.py",
+    "usecases.py",
     "intel.py",
     "backend.py",
     "service.py",
