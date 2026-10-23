@@ -57,6 +57,21 @@ Supported automated edits: direct npm pins, exact requirements pins, and unambig
 
 The dashboard shows the proposal, validation command, rollback plan, client paths, advisory evidence, intel provenance, and audit trail. A reviewer can approve or reject a current proposal. Approval is a recorded decision, with no merge or deployment action. A proposer cannot review their own proposal.
 
+### Use cases, threats and the notification center
+
+```bash
+sentinel demo-orgs                      # acme-pay, llm-gateway, buildkit: inventory, inferred use cases, access monitoring
+sentinel inject npm chalk 5.6.2         # demo: publish a compromised version and reconcile the fleet
+sentinel map path/to/src path/to/package-lock.json   # infer use cases for a real client
+sentinel monitor access.log secure.txt  # flag abnormal access to resources marked secure
+```
+
+`map` uploads only file paths and function names; Claude (through `AI_COMPLETE` on Snowflake, a path heuristic on the demo backend) labels each file's use case. When a package is compromised, each client's `client_impact` lists the use cases and functions that call it, directly or through a dependent. `GET /v1/clients/{id}/impacts` returns per-use-case `compromised`/`safe` status.
+
+`monitor` reads a JSON-lines log (`ts`, `principal`, `resource`, `ip`) and a file of secure resources (`NAME` or `NAME: allowed, principals`). It flags unlisted principals, bursts of secure accesses (default 5 in 10 minutes), and secure access from an IP the principal never used elsewhere. Only resource names and principals are uploaded.
+
+Every incident, IOC match and access anomaly lands in the notification center (`GET /v1/notifications`). The autonomous code agent answers with actions and code; see [docs/AUTONOMOUS_CODE.md](docs/AUTONOMOUS_CODE.md). `inject` is demo-only and needs the admin token.
+
 ## Components
 
 | Component | Implementation |
@@ -103,7 +118,8 @@ The original populated Snowflake data layer stays intact. **Do not rerun `01_dat
 4. Sync the GitHub repository to Snowflake. Copy `dist/vuln_sentinel.zip` from the Git repository stage into `SERVING.APP_CODE` using the `COPY FILES` example in `sql/12_native_matching_task.sql`, replacing the repository reference. Alternatively upload the archive through the stage UI.
 5. Run `sql/12_native_matching_task.sql`, adjusting `DEFAULT_WH`. It creates `MATCH_CLIENT_ADVISORIES()` using the shared Python implementation and creates a suspended hourly task. Call the procedure once and inspect its result (`complete`, `unknown`, `errors`) before resuming the task. The existing ingestion tasks remain suspended until you explicitly resume them.
 6. Run `sql/13_roles.sql`, adjusting the warehouse. Assign `VULN_SENTINEL_APP` to the server's service user and configure a named connector connection with that role. The native procedure/task should be owned by a dedicated deployment role with the required object access. Clients use API PATs; do not distribute the service user's Snowflake credentials.
-7. Set `SENTINEL_BACKEND=snowflake` and `SNOWFLAKE_CONNECTION_NAME=vuln_sentinel`. Configure the connection in Snowflake's supported [`connections.toml`](https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-connect), then start the API and dashboard on your application compute. The HTTP server is an ASGI process; uploading SQL or Python to a worksheet does not host it. The dashboard needs a reachable API URL.
+7. Run `sql/14_notifications_and_usecases.sql` for the notification center, use-case maps and threat events, and grant `SNOWFLAKE.CORTEX_USER` to the app role (the script does both). `python scripts/deploy_snowflake.py 10 11 13 14` runs numbered files through the named connection; step 01 needs `--fresh`.
+8. Set `SENTINEL_BACKEND=snowflake` and `SNOWFLAKE_CONNECTION_NAME=vuln_sentinel`. Configure the connection in Snowflake's supported [`connections.toml`](https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-connect), then start the API and dashboard on your application compute. `snowflake/spcs.sql` and `snowflake/service.yaml` run both as one Snowpark Container Services service; they were written without a live account and are untested. The HTTP server is an ASGI process; uploading SQL or Python to a worksheet does not host it. The dashboard needs a reachable API URL.
 
 The native task evaluates every unique exact version in each client's latest SBOM, calls `RESPOND`, enriches it with intel, computes client paths, and writes emergencies and audit events. It uses no outbound client connection. As an alternative to the native task, run `sentinel reconcile --interval 3600` with an admin API token. Use one scheduler; enabling both is unnecessary.
 
