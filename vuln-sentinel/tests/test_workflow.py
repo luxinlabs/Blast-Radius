@@ -202,6 +202,9 @@ def test_mcp_transport_and_tool_scopes(stack):
         "register_sbom",
         "report_scan",
         "submit_fix_proposal",
+        "get_agent_status",
+        "run_response_agents",
+        "check_deployment_gate",
     }
     resp = client.post(
         "/mcp/",

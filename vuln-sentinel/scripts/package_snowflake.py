@@ -6,6 +6,7 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[1]
 files = [
     "__init__.py",
+    "agents.py",
     "models.py",
     "config.py",
     "store.py",

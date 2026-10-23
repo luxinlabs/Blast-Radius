@@ -1,4 +1,4 @@
-"""Run numbered SQL files against Snowflake: python scripts/deploy_snowflake.py 02 03 ... (or 10 11 13 14).
+"""Run numbered SQL files against Snowflake: python scripts/deploy_snowflake.py 02 03 ... (or 10 11 13 14 15).
 
 Uses the named connection from connections.toml. File 01 replaces the database, so it needs --fresh.
 """

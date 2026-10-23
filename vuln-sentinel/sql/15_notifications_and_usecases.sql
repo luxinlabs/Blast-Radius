@@ -1,4 +1,4 @@
--- Additive: notification center, client use-case maps and injected threat events. Run after 10 and 13.
+-- Additive: notification center, client use-case maps and injected threat events. Run after 10 and 13 (14 adds containment actions).
 CREATE TABLE IF NOT EXISTS VULN_SENTINEL_DB.SERVING.THREAT_EVENTS (
   event_id VARCHAR PRIMARY KEY,
   ecosystem VARCHAR NOT NULL,

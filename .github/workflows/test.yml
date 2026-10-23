@@ -1,4 +1,4 @@
-name: Validate Vuln Sentinel
+name: Validate Blast Radius
 on: [push, pull_request]
 jobs:
   test:

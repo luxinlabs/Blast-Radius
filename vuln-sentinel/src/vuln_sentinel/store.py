@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 TABLES = {
+    "containment_actions": "action_id VARCHAR PRIMARY KEY, client_id VARCHAR NOT NULL, emergency_id VARCHAR NOT NULL, revision VARCHAR NOT NULL, payload VARCHAR NOT NULL, status VARCHAR NOT NULL, requested_by VARCHAR NOT NULL, reviewer VARCHAR, reason VARCHAR, created_at VARCHAR NOT NULL, updated_at VARCHAR NOT NULL, action_type VARCHAR NOT NULL",
     "clients": "client_id VARCHAR PRIMARY KEY, name VARCHAR NOT NULL, created_at VARCHAR NOT NULL",
     "client_sbom": "client_id VARCHAR NOT NULL, revision VARCHAR NOT NULL, payload VARCHAR NOT NULL, created_at VARCHAR NOT NULL, PRIMARY KEY(client_id, revision)",
     "emergencies": "emergency_id VARCHAR PRIMARY KEY, client_id VARCHAR NOT NULL, revision VARCHAR NOT NULL, fingerprint VARCHAR NOT NULL, status VARCHAR NOT NULL, payload VARCHAR NOT NULL, proposal VARCHAR, reviewer VARCHAR, reason VARCHAR, created_at VARCHAR NOT NULL, updated_at VARCHAR NOT NULL",
@@ -441,3 +442,110 @@ class Store:
                         "EMERGENCY_SUPERSEDED",
                         {"emergency_id": row["emergency_id"], "reason": "new response evidence"},
                     )
+
+    def propose_containment(self, identity, emergency, payload, actor):
+        with self.transaction() as c:
+            self.assert_current(c, emergency["client_id"], emergency["revision"])
+            rows = self.rows(
+                c, f"SELECT * FROM {self.table('containment_actions')} WHERE action_id=?", [identity]
+            )
+            if not rows:
+                self.execute(
+                    c,
+                    f"INSERT INTO {self.table('containment_actions')} VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    [
+                        identity,
+                        emergency["client_id"],
+                        emergency["emergency_id"],
+                        emergency["revision"],
+                        encode(payload),
+                        "PROPOSED",
+                        actor,
+                        None,
+                        None,
+                        now(),
+                        now(),
+                        "BLOCK_VERSION",
+                    ],
+                )
+                self.event(
+                    c,
+                    emergency["client_id"],
+                    actor,
+                    "CONTAINMENT_PROPOSED",
+                    {"action_id": identity, **payload},
+                )
+        return identity
+
+    def containment_actions(self, client, emergency=None):
+        with self.transaction() as c:
+            where, args = "client_id=?", [client]
+            if emergency:
+                where += " AND emergency_id=?"
+                args.append(emergency)
+            rows = self.rows(
+                c,
+                f"SELECT * FROM {self.table('containment_actions')} WHERE {where} ORDER BY created_at DESC",
+                args,
+            )
+        for row in rows:
+            row["payload"] = json.loads(row["payload"])
+        return rows
+
+    def get_containment(self, identity):
+        with self.transaction() as c:
+            rows = self.rows(
+                c, f"SELECT * FROM {self.table('containment_actions')} WHERE action_id=?", [identity]
+            )
+        if not rows:
+            raise ValueError("Unknown containment action")
+        return rows[0]
+
+    def review_containment(self, action, review, actor):
+        with self.transaction() as c:
+            self.assert_current(c, action["client_id"], review.revision)
+            emergency = self.rows(
+                c,
+                f"SELECT status FROM {self.table('emergencies')} WHERE emergency_id=?",
+                [action["emergency_id"]],
+            )
+            if (
+                not emergency
+                or emergency[0]["status"] == "SUPERSEDED"
+                or review.revision != action["revision"]
+            ):
+                raise ValueError("Containment evidence is stale")
+            status = "APPLIED" if review.decision == "APPROVED" else "REJECTED"
+            cursor = self.execute(
+                c,
+                f"UPDATE {self.table('containment_actions')} SET status=?,reviewer=?,reason=?,updated_at=? WHERE action_id=? AND status='PROPOSED'",
+                [status, actor, review.reason, now(), action["action_id"]],
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("Action is not pending review")
+            self.event(
+                c,
+                action["client_id"],
+                actor,
+                "CONTAINMENT_REVIEW",
+                {"action_id": action["action_id"], **review.model_dump()},
+            )
+        return {"status": status, "enforcement": "sentinel gate", "external_infrastructure_changed": False}
+
+    def revoke_containment(self, action, review, actor):
+        with self.transaction() as c:
+            cursor = self.execute(
+                c,
+                f"UPDATE {self.table('containment_actions')} SET status='REVOKED',reviewer=?,reason=?,updated_at=? WHERE action_id=? AND revision=? AND status='APPLIED'",
+                [actor, review.reason, now(), action["action_id"], review.revision],
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("Only an active policy with matching evidence can be revoked")
+            self.event(
+                c,
+                action["client_id"],
+                actor,
+                "CONTAINMENT_REVOKED",
+                {"action_id": action["action_id"], "reason": review.reason},
+            )
+        return {"status": "REVOKED", "external_infrastructure_changed": False}
