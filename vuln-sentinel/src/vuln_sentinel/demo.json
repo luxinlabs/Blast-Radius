@@ -1,0 +1,373 @@
+{
+  "notice": "DEMO ONLY. Versions are fixtures from the supplied design, not verified current facts.",
+  "packages": {
+    "PyPI/litellm": {
+      "matches": [
+        {
+          "versions": [
+            "1.82.7",
+            "1.82.8",
+            "1.107.0"
+          ],
+          "advisory_id": "MAL-2026-2144",
+          "summary": "Synthetic demo evidence based on supplied design; not a live OSV record.",
+          "severity": "CRITICAL",
+          "cve_ids": []
+        }
+      ],
+      "versions": [
+        "1.106.2"
+      ],
+      "recommended_version": {
+        "same_major": "1.106.2",
+        "latest_clean": "1.106.2"
+      },
+      "blast_radius": [],
+      "secrets_at_risk": true,
+      "playbook": [
+        {
+          "step_no": 1,
+          "phase": "contain",
+          "action": "Freeze deployments and block affected versions",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 2,
+          "phase": "recover",
+          "action": "Pin the verified safe version, rebuild and test",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 3,
+          "phase": "investigate",
+          "action": "Hunt for indicators locally and rotate exposed secrets",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 4,
+          "phase": "approve",
+          "action": "Human review before merging or deploying",
+          "owner": "SRE",
+          "automatable": false
+        }
+      ]
+    },
+    "npm/axios": {
+      "matches": [
+        {
+          "versions": [
+            "0.30.4",
+            "1.14.1"
+          ],
+          "advisory_id": "MAL-2026-2307",
+          "summary": "Synthetic demo evidence based on supplied design; not a live OSV record.",
+          "severity": "CRITICAL",
+          "cve_ids": []
+        }
+      ],
+      "versions": [
+        "1.20.0"
+      ],
+      "recommended_version": {
+        "same_major": "1.20.0",
+        "latest_clean": "1.20.0"
+      },
+      "blast_radius": [],
+      "secrets_at_risk": true,
+      "playbook": [
+        {
+          "step_no": 1,
+          "phase": "contain",
+          "action": "Freeze deployments and block affected versions",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 2,
+          "phase": "recover",
+          "action": "Pin the verified safe version, rebuild and test",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 3,
+          "phase": "investigate",
+          "action": "Hunt for indicators locally and rotate exposed secrets",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 4,
+          "phase": "approve",
+          "action": "Human review before merging or deploying",
+          "owner": "SRE",
+          "automatable": false
+        }
+      ]
+    },
+    "npm/chalk": {
+      "matches": [
+        {
+          "versions": [
+            "5.6.1"
+          ],
+          "advisory_id": "MAL-2025-46969",
+          "summary": "Synthetic demo evidence based on supplied design; not a live OSV record.",
+          "severity": "CRITICAL",
+          "cve_ids": []
+        }
+      ],
+      "versions": [
+        "5.6.2"
+      ],
+      "recommended_version": {
+        "same_major": "5.6.2",
+        "latest_clean": "5.6.2"
+      },
+      "blast_radius": [],
+      "secrets_at_risk": true,
+      "playbook": [
+        {
+          "step_no": 1,
+          "phase": "contain",
+          "action": "Freeze deployments and block affected versions",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 2,
+          "phase": "recover",
+          "action": "Pin the verified safe version, rebuild and test",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 3,
+          "phase": "investigate",
+          "action": "Hunt for indicators locally and rotate exposed secrets",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 4,
+          "phase": "approve",
+          "action": "Human review before merging or deploying",
+          "owner": "SRE",
+          "automatable": false
+        }
+      ]
+    },
+    "npm/debug": {
+      "matches": [
+        {
+          "versions": [
+            "4.4.2"
+          ],
+          "advisory_id": "MAL-2025-46974",
+          "summary": "Synthetic demo evidence based on supplied design; not a live OSV record.",
+          "severity": "CRITICAL",
+          "cve_ids": []
+        }
+      ],
+      "versions": [
+        "4.4.3"
+      ],
+      "recommended_version": {
+        "same_major": "4.4.3",
+        "latest_clean": "4.4.3"
+      },
+      "blast_radius": [],
+      "secrets_at_risk": true,
+      "playbook": [
+        {
+          "step_no": 1,
+          "phase": "contain",
+          "action": "Freeze deployments and block affected versions",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 2,
+          "phase": "recover",
+          "action": "Pin the verified safe version, rebuild and test",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 3,
+          "phase": "investigate",
+          "action": "Hunt for indicators locally and rotate exposed secrets",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 4,
+          "phase": "approve",
+          "action": "Human review before merging or deploying",
+          "owner": "SRE",
+          "automatable": false
+        }
+      ]
+    },
+    "npm/ansi-styles": {
+      "matches": [
+        {
+          "versions": [
+            "6.2.2"
+          ],
+          "advisory_id": "MAL-2025-46967",
+          "summary": "Synthetic demo evidence based on supplied design; not a live OSV record.",
+          "severity": "CRITICAL",
+          "cve_ids": []
+        }
+      ],
+      "versions": [
+        "6.2.3"
+      ],
+      "recommended_version": {
+        "same_major": "6.2.3",
+        "latest_clean": "6.2.3"
+      },
+      "blast_radius": [],
+      "secrets_at_risk": true,
+      "playbook": [
+        {
+          "step_no": 1,
+          "phase": "contain",
+          "action": "Freeze deployments and block affected versions",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 2,
+          "phase": "recover",
+          "action": "Pin the verified safe version, rebuild and test",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 3,
+          "phase": "investigate",
+          "action": "Hunt for indicators locally and rotate exposed secrets",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 4,
+          "phase": "approve",
+          "action": "Human review before merging or deploying",
+          "owner": "SRE",
+          "automatable": false
+        }
+      ]
+    },
+    "npm/next": {
+      "matches": [
+        {
+          "versions": [
+            "15.2.2"
+          ],
+          "advisory_id": "GHSA-demo-next",
+          "summary": "Synthetic demo evidence based on supplied design; not a live OSV record.",
+          "severity": "CRITICAL",
+          "cve_ids": [
+            "CVE-2025-29927"
+          ]
+        }
+      ],
+      "versions": [
+        "15.5.28"
+      ],
+      "recommended_version": {
+        "same_major": "15.5.28",
+        "latest_clean": "15.5.28"
+      },
+      "blast_radius": [],
+      "secrets_at_risk": true,
+      "playbook": [
+        {
+          "step_no": 1,
+          "phase": "contain",
+          "action": "Freeze deployments and block affected versions",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 2,
+          "phase": "recover",
+          "action": "Pin the verified safe version, rebuild and test",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 3,
+          "phase": "investigate",
+          "action": "Hunt for indicators locally and rotate exposed secrets",
+          "owner": "SRE",
+          "automatable": false
+        },
+        {
+          "step_no": 4,
+          "phase": "approve",
+          "action": "Human review before merging or deploying",
+          "owner": "SRE",
+          "automatable": false
+        }
+      ]
+    },
+    "PyPI/requests": {
+      "matches": [],
+      "versions": [
+        "2.32.5"
+      ],
+      "recommended_version": {
+        "same_major": "2.32.5",
+        "latest_clean": "2.32.5"
+      },
+      "blast_radius": [],
+      "secrets_at_risk": true,
+      "playbook": []
+    },
+    "PyPI/certifi": {
+      "matches": [],
+      "versions": [
+        "2026.1.1"
+      ],
+      "recommended_version": {
+        "same_major": "2026.1.1",
+        "latest_clean": "2026.1.1"
+      },
+      "blast_radius": [],
+      "secrets_at_risk": false,
+      "playbook": [
+        {
+          "step_no": 1,
+          "action": "Compare certificate bundles and run TLS checks"
+        }
+      ]
+    }
+  },
+  "intel": [
+    {
+      "kind": "kev",
+      "indicator": "CVE-2025-29927",
+      "source": "synthetic-demo",
+      "observed_at": "2026-01-01T00:00:00+00:00"
+    },
+    {
+      "kind": "ip",
+      "indicator": "203.0.113.42",
+      "source": "synthetic-demo (TEST-NET-3)",
+      "observed_at": "2026-01-01T00:00:00+00:00"
+    },
+    {
+      "kind": "domain",
+      "indicator": "ioc.example.invalid",
+      "source": "synthetic-demo",
+      "observed_at": "2026-01-01T00:00:00+00:00"
+    }
+  ]
+}

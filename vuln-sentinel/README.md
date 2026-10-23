@@ -1,88 +1,146 @@
 # Vuln Sentinel
 
-Emergency response for open-source dependencies, built on Snowflake.
+Scan exact dependency versions, evaluate OSV advisories in Snowflake, hunt for indicators locally, prepare tested fix branches, and record human reviews. The system never merges or deploys a fix.
 
-When a dependency is compromised or a critical CVE lands, the question is: *what should we do, right now?*
-Vuln Sentinel answers it for a single package and version:
+## Run locally
 
-```sql
-CALL VULN_SENTINEL_DB.SERVING.RESPOND('pypi', 'litellm', '1.107.0', TRUE);
+Python 3.11+ is required; npm, Poetry, and GitHub CLI are needed only for their corresponding fix workflows.
+
+```bash
+cd vuln-sentinel
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -c constraints.txt -e '.[dev,snowflake]'
+sentinel init-demo
+sentinel demo
+sentinel serve
 ```
 
-It returns:
+`init-demo` creates an ignored `.env` with unique admin, agent, and reviewer tokens, readable only by your user. Commands load this file automatically. `demo` seeds a persistent incident and synthetic log findings using an in-process API; it does not need a running HTTP server and does not create a pretend PR or pretend test results.
 
-- **incident type**: `MALICIOUS_RELEASE`, `VULNERABILITY`, `UNAVAILABLE` or `TRUST_STORE`
-- **matching advisories** from OSV (GHSA, PYSEC, MAL entries), evaluated against version ranges
-- **recommended version**: the newest clean release on the same major line, plus the newest clean release overall
-- **blast radius**: which watched packages pull this one in, and through which chain (e.g. `boto3 -> botocore -> urllib3`)
-- **secrets at risk**: whether the package or anything that depends on it handles credentials
-- **playbook**: the ordered contain / eradicate / recover / investigate steps for the incident type
-- **SRE brief** (optional): a short markdown summary written by `AI_COMPLETE` from the facts above
-- `requires_human_approval: true`. Nothing here applies a fix on its own.
+In another terminal, from `vuln-sentinel`:
 
-## Data sources
+```bash
+source .venv/bin/activate
+sentinel dashboard
+```
 
-| Source | Used for |
+Open **http://127.0.0.1:8501** and paste `SENTINEL_REVIEWER_TOKEN` from `.env` into the password field. The API is at **http://127.0.0.1:8000**; authenticated API documentation is at `/docs` (supply a bearer header using an API client or browser header configuration).
+
+The demo is explicitly labeled and uses a small fixture based on the supplied architecture. Its versions and indicators are synthetic test evidence, not current security guidance. Unknown fixture packages produce `UNKNOWN`, never a clean bill of health. No malicious demo dependencies are installed.
+
+### Scan, hunt, and propose
+
+With the API running:
+
+```bash
+sentinel scan examples/package-lock.json
+sentinel scan examples/poetry.lock
+sentinel scan examples/requirements.txt
+sentinel hunt examples/demo.log
+```
+
+These commands use the agent token. Register another client first with `POST /v1/clients` using an admin token, then give its agent a token scoped to that client. `scan` uploads only the normalized inventory and graph; `hunt` reads local files and sends matched indicator counts and basenames, without log contents. IOC matches need investigation; Tor or AI endpoint traffic alone is not evidence of compromise.
+
+To prepare a real fix in a clean, committed client repository:
+
+```bash
+sentinel fix /path/to/requirements.txt --emergency EMERGENCY_ID \
+  --test 'uv run --with-requirements requirements.txt pytest'
+```
+
+The test command is explicit, split into arguments, and executed without a shell. Choose a command that tests the updated dependencies in an isolated environment. Merely running tests against an old globally installed environment is insufficient. The command runs inside a new Git worktree; your original checkout stays on its existing branch.
+
+Add `--open-pr` to push the fix branch and open a **draft** GitHub PR through `gh`, then submit its proposal to the server. Without this flag, the branch, commit, PR description, and rollback plan stay local. Failed tests prevent the commit and proposal; the worktree is retained for inspection. The client never executes commands supplied by advisory text or an AI brief.
+
+Supported automated edits: direct npm pins, exact requirements pins, and unambiguous direct Poetry dependencies, including named groups. Transitive npm fixes, ambiguous Poetry groups, source overrides, and complex markers/extras require a reviewed parent/manifest change. The client stops with an explanation rather than silently changing their semantics. npm lock regeneration disables install scripts. Poetry regeneration updates the manifest and lockfile with `poetry add --lock`.
+
+The dashboard shows the proposal, validation command, rollback plan, client paths, advisory evidence, intel provenance, and audit trail. A reviewer can approve or reject a current proposal. Approval is a recorded decision, with no merge or deployment action. A proposer cannot review their own proposal.
+
+## Components
+
+| Component | Implementation |
 |---|---|
-| [OSV.dev](https://osv.dev) full exports for npm and PyPI | Advisories, affected ranges, malicious-package entries |
-| registry.npmjs.org, api.npmjs.org | npm metadata, versions, downloads, dependencies |
-| pypi.org | PyPI metadata, versions, `requires_dist` |
-| [hugovk/top-pypi-packages](https://hugovk.github.io/top-pypi-packages/) | PyPI popularity ranking |
+| HTTP API | `src/vuln_sentinel/server.py`, FastAPI, bearer PAT authentication |
+| MCP | Same server, Streamable HTTP at `/mcp/`, seven tools |
+| Client agent | `sentinel scan`, `hunt`, `fix` |
+| Human review | `sentinel dashboard`, Streamlit, API-enforced authorization |
+| Persistence | SQLite/WAL locally; Snowflake tracking tables in live mode |
+| Reconciliation | `sentinel reconcile`, or native Snowflake procedure/task |
+| Marketplace adapter | `INTEL.SIGNAL_FEED`, enriched package-risk view, source/expiry-aware priority and local IOC hunting |
+| Response engine | Existing `SERVING.RESPOND`, corrected by migration 11 |
 
-Optional Snowflake Marketplace enrichment (not yet joined into the views): Edg3 Open Reference Pack (free),
-Criminal IP Malicious IP Addresses (paid), Cybersixgill Vulnerability and Exploit Intelligence (by request).
-See `sql/09_marketplace_intel.sql`.
+MCP tools: `respond`, `get_package_risk`, `get_blast_radius`, `list_emergencies`, `register_sbom`, `report_scan`, and `submit_fix_proposal`. Approval is deliberately outside the agent tool surface. Point an HTTP-capable MCP client at `http://127.0.0.1:8000/mcp/` and configure `Authorization: Bearer <agent-token>`. Do not commit tokens into client configuration.
 
-## Watchlist
-
-The response layer is scoped to a seed watchlist of 25 high-impact packages (`seed/seed_watchlist.csv`):
-
-- **npm**: axios, express, next, react, react-dom, lodash, debug, chalk, ansi-styles, jsonwebtoken, ua-parser-js
-- **PyPI**: requests, urllib3, certifi, cryptography, django, flask, fastapi, starlette, python-multipart,
-  jinja2, pyyaml, boto3, botocore, litellm
-
-Each entry records where it runs, whether it is mostly transitive, and which secrets it can reach.
-Add rows to `CORE.WATCHLIST` and run `REFRESH('FULL')` to extend it.
-
-## Layout
-
-```
-VULN_SENTINEL_DB
-├── RAW      landing tables (OSV JSON, registry JSON) and ingestion procedures
-├── CORE     ADVISORIES, AFFECTED_RANGES, PACKAGES, PACKAGE_VERSIONS, DEPENDENCIES, WATCHLIST, IS_AFFECTED()
-├── INTEL    reserved for Marketplace threat-intel views
-└── SERVING  PACKAGE_VERSION_RISK, V_PACKAGE_RISK, V_BLAST_RADIUS, RESPONSE_PLAYBOOK, RESPOND(), REFRESH(), tasks
+```json
+{
+  "mcpServers": {
+    "vuln-sentinel": {
+      "url": "http://127.0.0.1:8000/mcp/",
+      "headers": {"Authorization": "Bearer REPLACE_WITH_AGENT_TOKEN"}
+    }
+  }
+}
 ```
 
-## Install
+The exact enclosing configuration format depends on the MCP client. The endpoint uses the official [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk). PAT authentication is implemented; OAuth identity-provider integration is not included.
 
-Run the files in `sql/` in order with a role that can create databases and integrations
-(`CREATE DATABASE`, `CREATE INTEGRATION`) and use Cortex AI functions (`SNOWFLAKE.CORTEX_USER`).
+Tokens map to authenticated subjects and roles in `SENTINEL_TOKENS`. Roles are `admin` (fleet), `agent`, `reviewer`, and `reader` (each scoped to one `client_id`). Agent tools cannot change this mapping. All endpoints except `/health` require a token. Public deployments require HTTPS and a secret manager. Configure `SENTINEL_ALLOWED_HOSTS` and `SENTINEL_ALLOWED_ORIGINS` with the actual public MCP host/origin; DNS rebinding protection remains enabled. `/health` reports process liveness, not Snowflake readiness.
 
-| File | What it does |
-|---|---|
-| `01_database_schemas_tables.sql` | Database, schemas, tables. **`CREATE OR REPLACE` — drops existing data.** |
-| `02_network_access.sql` | Network rule and external access integration for OSV, npm, PyPI |
-| `03_functions_procedures.sql` | `IS_AFFECTED`, ingestion, merge, `REFRESH`, `RESPOND` |
-| `04_views.sql` | `V_BLAST_RADIUS`, `V_PACKAGE_RISK` |
-| `05_tasks.sql` | Hourly and daily refresh tasks (created suspended; uses warehouse `DEFAULT_WH`, edit to suit) |
-| `06_seed_data.sql` | Watchlist and response playbook |
-| `07_initial_load.sql` | First full load, and optional task resume |
-| `08_demo.sql` | Example `RESPOND` calls and blast-radius queries |
-| `09_marketplace_intel.sql` | Optional Marketplace listings |
+### Incident consistency
 
-## Notes and limitations
+The SBOM revision hashes the normalized inventory. Emergency identity hashes the client, revision, and response evidence. Repeated scans are idempotent. New inventory or evidence supersedes old reviews; withdrawn matches are retired. Returning to an older inventory reopens its incident with a new review requirement. Proposal submission and human review re-evaluate the inventory and target version. Coverage gaps or backend failures block review rather than implying safety.
 
-- Malicious versions are usually deleted from npm and PyPI. They are still evaluated from the advisory's
-  explicit version list, so a lockfile that pins one is still caught.
-- Withdrawn advisories and OSV entries marked as false positives are excluded.
-- Blast radius uses the declared dependencies of each package's **latest** release, not the versions in a
-  given lockfile. Per-client resolution belongs in the client agent.
-- Version comparison uses PEP 440 for PyPI and a semver key for npm.
-- The SRE brief is generated by an LLM and must be reviewed by a human.
+SQLite uses immediate transactions. Snowflake uses a single enforced hybrid-table lock row to serialize tracking transactions across API instances and the native task. Audit inserts and status changes commit together. Application roles can append audit events but cannot update or delete them. Client-supplied test results are reported evidence, not independently attested CI results; reviewers must inspect the PR and its CI.
 
-## Roadmap
+## Deploy back to Snowflake through GitHub
 
-- MCP server exposing `RESPOND`, `V_PACKAGE_RISK` and `V_BLAST_RADIUS` to Claude, Codex and other agents
-- Client agent: lockfile/SBOM upload, local log IOC hunting, autonomous fix PRs with human approval
-- Marketplace intel joins (exploit likelihood by CVE, IOC matching)
+The original populated Snowflake data layer stays intact. **Do not rerun `01_database_schemas_tables.sql`: it replaces the database.** For an existing installation, use only the additive upgrades below.
+
+1. Run `sql/10_tracking_and_intel.sql`. This creates tracking tables, a hybrid lock, a neutral intel feed, the enriched risk view, and an application-code stage. Hybrid table support is required for tracking concurrency; the script deliberately fails rather than silently weakening locking.
+2. Run `sql/11_response_safety.sql`. This replaces only `IS_AFFECTED` and `RESPOND`. Safe versions are checked directly against all advisory ranges, including packages outside the watchlist. Unknown comparisons fail closed. `lowest_clean_upgrade` is the lowest registered stable, non-yanked, non-deprecated clean upgrade, rather than the largest advisory boundary. All matching CVE IDs are retained for intel joins even when displayed advisories are capped at 25.
+3. Run `python scripts/package_snowflake.py` after changes. Commit the deterministic `dist/vuln_sentinel.zip` archive alongside the source. CI checks that it matches.
+4. Sync the GitHub repository to Snowflake. Copy `dist/vuln_sentinel.zip` from the Git repository stage into `SERVING.APP_CODE` using the `COPY FILES` example in `sql/12_native_matching_task.sql`, replacing the repository reference. Alternatively upload the archive through the stage UI.
+5. Run `sql/12_native_matching_task.sql`, adjusting `DEFAULT_WH`. It creates `MATCH_CLIENT_ADVISORIES()` using the shared Python implementation and creates a suspended hourly task. Call the procedure once and inspect its result (`complete`, `unknown`, `errors`) before resuming the task. The existing ingestion tasks remain suspended until you explicitly resume them.
+6. Run `sql/13_roles.sql`, adjusting the warehouse. Assign `VULN_SENTINEL_APP` to the server's service user and configure a named connector connection with that role. The native procedure/task should be owned by a dedicated deployment role with the required object access. Clients use API PATs; do not distribute the service user's Snowflake credentials.
+7. Set `SENTINEL_BACKEND=snowflake` and `SNOWFLAKE_CONNECTION_NAME=vuln_sentinel`. Configure the connection in Snowflake's supported [`connections.toml`](https://docs.snowflake.com/en/developer-guide/python-connector/python-connector-connect), then start the API and dashboard on your application compute. The HTTP server is an ASGI process; uploading SQL or Python to a worksheet does not host it. The dashboard needs a reachable API URL.
+
+The native task evaluates every unique exact version in each client's latest SBOM, calls `RESPOND`, enriches it with intel, computes client paths, and writes emergencies and audit events. It uses no outbound client connection. As an alternative to the native task, run `sentinel reconcile --interval 3600` with an admin API token. Use one scheduler; enabling both is unnecessary.
+
+Marketplace subscriptions and listing terms are external prerequisites. This implementation does **not** accept terms, purchase data, or guess provider schemas. After access is approved, map the provider's actual columns into `INTEL.SIGNAL_FEED`:
+
+| `kind` | `indicator` | `score` | Purpose |
+|---|---|---|---|
+| `kev` | CVE identifier | NULL | Known exploited; P0 priority |
+| `exploit` | CVE identifier | Provider score normalized to 0–1 | Score ≥0.7 boosts vulnerability to P1 |
+| `ip`, `tor` | Exact canonical IP | NULL | Local log matches |
+| `domain`, `ai_endpoint` | Hostname, without scheme/path | NULL | Local log matches |
+
+Every signal needs `source` and timezone-aware `observed_at`; use `expires_at` for expiring feeds. Expired records are ignored. A missing feed is not evidence of no exploitation. `sql/09_marketplace_intel.sql` preserves the supplied listing identifiers as optional operator steps. No live Marketplace data was used in local validation.
+
+### Containers
+
+After `sentinel init-demo`, `docker compose up --build` starts API, dashboard, and worker. These development services share the API network namespace so the dashboard and worker can use the loopback API URL. Ports bind to the host's loopback interface. Run `docker compose exec api sentinel demo` to seed its persistent SQLite volume. Containers require Docker and were not built in this environment.
+
+## Validate
+
+```bash
+ruff check src tests scripts
+ruff format --check src tests scripts
+python scripts/test.py -q
+python scripts/package_snowflake.py
+```
+
+The test launcher avoids an optional libreadline crash found in the local macOS Conda Python. Standard `pytest` works in normal Python installations.
+
+The suite exercises actual API and MCP ASGI transports, authorization, proposal/review transitions, stale evidence and withdrawals, parser behavior, IOC privacy, version matching, real isolated Git commits and failure paths, Streamlit forms, and the native Snowpark adapter against a local SQL engine. GitHub push/PR creation and the Snowflake query boundary are mocked. Tests never install the malicious example dependencies, push a branch, accept listing terms, or call paid services.
+
+Live Snowflake DDL compilation, provider mappings, account privileges, warehouse execution, Cortex briefs, and real GitHub PR creation still need deployment validation. Local tests do not certify the provided row counts or the current vulnerability status of package versions.
+
+## Data and coverage limits
+
+- npm package-lock v2/v3 preserves installed locators, duplicate versions, and reverse paths. v1 directness is inferred and labeled incomplete. Workspace links without exact versions produce warnings.
+- Poetry includes conditional variants conservatively; version constraints and environment markers may make its graph incomplete. requirements files require exact pins and have no dependency graph. Includes, hashes, editable sources, URL requirements, and floating versions are rejected rather than silently skipped.
+- Snowflake watchlist paths still use latest-release declarations; client paths are separate and labeled. Six-hop limits apply to the original watchlist view; client traversal uses visited locators to handle cycles.
+- Catalog coverage is limited to loaded npm/PyPI packages. Missing catalog entries return unknown. Scan/reconcile commands exit with status 2 for incomplete coverage.
+- AI briefs are optional, untrusted summaries. The incident decision and approvals use structured facts, not generated prose.

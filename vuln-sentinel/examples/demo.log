@@ -1,0 +1,4 @@
+SYNTHETIC TEST DATA ONLY
+request destination=203.0.113.42 status=200 secret=DO_NOT_UPLOAD_THIS_LINE
+request destination=ioc.example.invalid status=200
+request destination=notioc.example.invalid status=200
