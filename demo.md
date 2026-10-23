@@ -195,3 +195,27 @@ Deliver the closing script, pause, and stop. Avoid adding a last-minute feature 
 - If the API is offline, restart it before presenting. A 404 on `/agents` means the API may still be running older code.
 - If a live connection fails during the slot, state the limitation once and show a clearly labeled recorded run or the prepared evidence.
 - End on the demonstrated result. Do not spend the closing minute troubleshooting.
+
+---
+
+# One-Minute Submission Video
+
+**Format:** a screen recording with voice-over, edited, not live. About 150 spoken words. Cut between shots instead of waiting for clicks.
+
+**Story:** a poisoned library spreads in hours, Blast Radius answers in seconds, and a human stays in control.
+
+| Time | On screen | Voice-over |
+|---|---|---|
+| **0:00–0:10** | Title card: "chalk: 2 hours live → 1 in 10 cloud environments." | "In 2025, a hijacked version of chalk was live on npm for about two hours. In that time it reached at least one in ten cloud environments." |
+| **0:10–0:20** | Dependency chain animating: your app → `next` → `chalk 5.6.1`. | "Most teams never imported it themselves. It came in through another library, so it's invisible in their manifest." |
+| **0:20–0:32** | Dashboard: select **Chalk 5.6.1**, then highlight the dependency path and the affected use case. | "Blast Radius checks exact installed versions against advisories in Snowflake. It shows the full chain, and Claude maps it to the business function at risk." |
+| **0:32–0:42** | Click **Run response agents**, then cut to the scanner, patch and containment cards. | "Agents recheck the exposure, find a clean upgrade and propose a block. They can't approve their own actions." |
+| **0:42–0:50** | Human review: approve. Then the terminal: affected gate `allowed: false`, clean gate `allowed: true`. | "A reviewer approves. The affected build is rejected and the clean one passes." |
+| **0:50–1:00** | Closing card: "1,000 orgs · every exposed org found in 5.5 s · 0 false blocks." Then the logo. | "Across a thousand organizations, we found every exposed one in under six seconds. Blast Radius: know your exposure before the next build ships." |
+
+**Recording tips**
+
+- Record each shot separately with `sentinel demo` state already seeded, then edit them together. Don't record one take.
+- Overlay the experiment numbers as text; don't show the script running. Add a caption: "timed on local backend, synthetic fleet".
+- In the 0:20 shot, add a small caption "controlled demo fixture", because the Chalk scenario is synthetic.
+- Keep the tokens and the `.env` file out of every frame.

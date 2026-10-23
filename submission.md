@@ -48,6 +48,31 @@ https://github.com/luxinlabs/Blast-Radius
 
 **Baseline:** triage done by hand. An engineer reads the advisory, searches lockfiles across repositories, tracks down owners in chat, and edits CI by hand. That often involves several teams for hours or days, while new builds keep shipping the affected version. We haven't measured our improvement in production yet. The pilot will time Blast Radius against manual triage on the same incidents.
 
+**How fast a compromised library spreads:**
+
+| Incident | How long the bad version was live | How far it reached |
+|---|---|---|
+| chalk and debug, npm (Sept 8, 2025) | about 2 hours | The malicious code reached at least 1 in 10 cloud environments. 99% of cloud environments already used at least one of the targeted packages. |
+| axios, npm (Mar 31, 2026) | about 3 hours (00:21–03:29 UTC) | axios has 100M+ weekly downloads. If those are spread evenly, about 600,000 installs an hour, or roughly 1.8M during the window (our estimate). |
+| Mini Shai-Hulud worm, npm (May 19, 2026) | two automated waves | One stolen account published 637 malicious versions across 317 packages. |
+
+So a poisoned library reaches a large share of the industry in hours, while triage by hand takes hours to days.
+
+**How fast Blast Radius answers (our timed experiment):** we built synthetic fleets of client organizations. About 40% of them pull a compromised `chalk` in transitively through `next`, so it never appears in their own manifest. We then published the compromise and timed the response. This ran on the local SQLite backend on an Apple M1 Pro laptop. Reproduce it with `python scripts/spread_experiment.py 10 100 500 1000`.
+
+| Client orgs | Actually exposed | Found | Wrongly blocked | Time to find every exposed org | Time to map business impact | Gate check per build |
+|---:|---:|---:|---:|---:|---:|---:|
+| 10 | 6 | 6 | 0 | 0.07 s | 0.05 s | 7.7 ms |
+| 100 | 43 | 43 | 0 | 0.47 s | 0.34 s | 7.0 ms |
+| 500 | 215 | 215 | 0 | 2.4 s | 1.9 s | 6.6 ms |
+| 1,000 | 440 | 440 | 0 | 5.5 s | 3.9 s | 6.8 ms |
+
+Once an advisory exists, Blast Radius finds every exposed organization in seconds, including ones that only have the package transitively. It tells each one which business function is hit ("the home page calls `next`, which pulls in the bad `chalk`") and blocks the next affected build in under 10 ms. The window shrinks from hours or days of triage to seconds.
+
+*Caveats:* the inventories are synthetic and the dependency chain is two levels deep. The clock starts when the advisory is published, so Blast Radius doesn't catch a compromise before anyone reports it. These timings come from the local backend; the Snowflake-backed path adds query latency we haven't benchmarked yet.
+
+*Sources: [Wiz on chalk/debug](https://www.wiz.io/blog/widespread-npm-supply-chain-attack-breaking-down-impact-scope-across-debug-chalk), [Tenable on axios](https://tenable.com/blog/faq-about-the-axios-npm-supply-chain-attack-by-north-korea-nexus-threat-actor-unc1069), [Keboola's axios timeline](https://changelog.keboola.com/keboola-security-notice-axios-npm-supply-chain-attack-march-31-2026/), [SafeDep on Mini Shai-Hulud](https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/).*
+
 **Who funds it:** the CISO or AppSec budget, with platform or DevOps engineering as co-owner, because the gate runs in their CI.
 
 **Rough worth (illustrative estimate):** take a mid-size company with about 500 engineers handling 4–6 serious supply-chain incidents a year. If each incident pulls in about 30 engineers for half a day of triage, that's roughly 500–700 engineer-hours a year. Halving it saves about $40–60k a year at fully loaded cost. The larger value is closing the exposure window. One compromised dependency that reaches production can trigger breach response, customer notices and compliance reporting that cost far more than the tool.
